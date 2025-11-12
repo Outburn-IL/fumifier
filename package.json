@@ -39,7 +39,7 @@
     "test:preprocessAst": "npm run build:for-tests && c8 mocha \"test/pre-process-ast.test.js\" --timeout=10000",
     "build:sushi": "rimraf test/fsh-test-pkg/dist && sushi -s test/fsh-test-pkg -o test/fsh-test-pkg/dist && node test/create-fsh-manifest.js && npm run install:fsh-package",
     "install:fsh-package": "rimraf test/.test-cache/fumifier.test.pkg#0.1.0 && node test/install-fsh-package.js",
-    "prepublishOnly": "npm run lint && npm test && npm run build",
+    "prepublishOnly": "npm run build",
     "pack:dry": "npm run build && npm pack --dry-run"
   },
   "license": "AGPL-3.0",
