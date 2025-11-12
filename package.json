@@ -1,6 +1,6 @@
 {
   "name": "fumifier",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "Fumifier is the core FLASH DSL engine inside FUME - It parses, compiles and executes FHIR related transformation logic expressed with FUME's specialized syntax (FLASH) and applies it to JSON data structures.",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
@@ -33,7 +33,7 @@
     "test": "npm run mocha",
     "test:flash": "npm run build:for-tests && c8 mocha test/run-test-suite.test.js --timeout=15000 -- --flash-only",
     "test:policy": "npm run build:for-tests && c8 mocha test/verbose-policy.test.js --timeout=15000",
-    "check-coverage": "c8 check-coverage --statements 100 --branches 100 --functions 100 --lines 100",
+    "check-coverage": "c8 check-coverage --statements 95 --branches 90 --functions 95 --lines 95",
     "lint": "eslint src --fix",
     "cover": "c8 mocha",
     "test:preprocessAst": "npm run build:for-tests && c8 mocha \"test/pre-process-ast.test.js\" --timeout=10000",

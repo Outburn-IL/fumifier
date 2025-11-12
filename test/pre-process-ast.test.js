@@ -1,5 +1,5 @@
 /* eslint-disable require-jsdoc */
-import preProcessAst from '../src/utils/preprocessAst.js';
+import preProcessAst from '../src/utils/preProcessAst.js';
 import assert from 'assert';
 import fs from 'fs';
 import path from 'path';

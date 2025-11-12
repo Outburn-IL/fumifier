@@ -69,7 +69,8 @@ datasetnames.forEach((name) => {
 // found in the test-suite directory.
 describe("Fumifier Test Suite", () => {
   var navigator;
-  before(async () => {
+  before(async function() {
+    this.timeout(180000); // Set timeout to 180 seconds (3 minutes)
     const fsg = await FhirSnapshotGenerator.create({
       context: ['il.core.fhir.r4#0.17.0', 'fumifier.test.pkg#0.1.0'],
       cachePath: './test/.test-cache',
