@@ -104,6 +104,10 @@ describe('ExecutionId Feature', () => {
     expect(result.result).not.to.be.undefined;
     expect(typeof result.result).to.equal('string');
     expect(result.result).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+
+    // The return object should also include executionId at the top level
+    expect(result.executionId).not.to.be.undefined;
+    expect(result.executionId).to.equal(result.result);
   });
 
   it('should generate different executionIds for evaluate vs evaluateVerbose calls', async () => {
