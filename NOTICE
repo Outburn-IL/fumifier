@@ -1,5 +1,5 @@
 Fumifier (part of the FUME open-source initiative)
-Copyright (c) 2025 Outburn Ltd. and contributors
+Copyright (c) 2025 Outburn Ltd.
 
 Licensed under the GNU Affero General Public License, Version 3 (AGPL-3.0).
 See the file named LICENSE in the project root for the full license text.
@@ -7,7 +7,7 @@ See the file named LICENSE in the project root for the full license text.
 Third-party components and attributions
 - JSONata (https://github.com/jsonata-js/jsonata)
   License: MIT License
-  Copyright: (c) 2016–2025 JSONata authors
+  Copyright: 2016–2018 © IBM Corp.
   Notes: Portions of the evaluator, parser, and function library in this project
          are adapted and refactored from the JSONata codebase.
   License text: see LICENSES/MIT-JSONata.txt (verbatim upstream notice and license).
