@@ -2048,12 +2048,15 @@ var fumifier = (function() {
           errors = [];
         }
       } else if (typeof expr === 'object' && expr !== null) {
-        // Assume it's a pre-parsed AST object that's already fully processed
+        // Assume it's a pre-parsed AST object
         if (!Object.prototype.hasOwnProperty.call(expr, 'type')) {
           throw new Error('Invalid AST: AST object must have a "type" property');
         }
-        // Create a copy to avoid mutating the input AST
-        ast = JSON.parse(JSON.stringify(expr));
+
+        // No cloning needed - AST mutations only happen during FLASH resolution,
+        // and after resolution, ASTs are never mutated again
+        ast = expr;
+
         // If AST has errors from recovery mode, extract them
         if (ast.errors && Array.isArray(ast.errors)) {
           errors = [...ast.errors];
@@ -2070,6 +2073,11 @@ var fumifier = (function() {
       // - only if the AST contains flash blocks
       // - throws if has flash and no navigator
       if (ast && ast.containsFlash === true) {
+        // Check if AST is already resolved (has any of the resolved properties)
+        const isAlreadyResolved = ast.resolvedTypeMeta || ast.resolvedBaseTypeMeta ||
+                                ast.resolvedTypeChildren || ast.resolvedElementDefinitions ||
+                                ast.resolvedElementChildren || ast.resolvedValueSetExpansions;
+
         if (!navigator) {
           var err = {
             code: 'F1000',
@@ -2083,10 +2091,11 @@ var fumifier = (function() {
             err.stack = (new Error()).stack;
             throw err;
           }
-        } else {
-          // resolve all FHIR definition required for evaluation
+        } else if (!isAlreadyResolved) {
+          // Only resolve FHIR definitions if not already resolved
           ast = await resolveDefinitions(ast, navigator, recover, errors, compiledFhirRegex);
         }
+        // If already resolved, we can skip resolution and proceed directly to evaluation
       }
     } catch(err) {
       // insert error message into structure
