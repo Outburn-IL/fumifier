@@ -39,6 +39,7 @@ Fumifier compiles a FLASH expression string to an executable object, then evalua
 ---
 ## 2. Feature Highlights
 - Modern ES Module implementation (Node ≥ 20)
+- **AST Mobility** ⭐ **New in v0.12.0** – serialize/deserialize compiled expressions as JSON
 - Async evaluation pipeline with selective short‑circuiting
 - FLASH blocks & rules lowered into native evaluator stages
 - Tuple streams & ancestry tracking for context‑rich transformations
@@ -148,7 +149,12 @@ See `PolicyThresholds.md` for deeper guidance.
 ---
 ## 9. API Reference
 ### `await fumifier(expressionText, options)`
+### `await fumifier(astObject, options)` ⭐ **New in v0.12.0**
 Returns a compiled expression object.
+
+The fumifier function now accepts either:
+- `expressionText: string` – FLASH/JSONata expression to parse and compile
+- `astObject: Object` – Pre-parsed AST JSON to compile directly (**AST Mobility**)
 
 `options`:
 - `navigator?: FhirStructureNavigator` – required only if FLASH FHIR features are used.
@@ -163,6 +169,33 @@ Compiled object methods:
 - `setLogger(logger)` – supply object with `{ debug, info, warn, error }`
 - `ast()` – returns internal AST
 - `errors()` – returns compilation errors (if any)
+
+### AST Mobility ⭐ **New in v0.12.0**
+Fumifier now supports "AST mobility" - the ability to serialize and recreate compiled expressions:
+
+```js
+// 1. Create and extract AST
+const expr1 = await fumifier('$x * 2 + $y');
+const ast = expr1.ast();
+
+// 2. Serialize AST to JSON
+const astJson = JSON.stringify(ast);
+
+// 3. Recreate expression from AST
+const deserializedAst = JSON.parse(astJson);
+const expr2 = await fumifier(deserializedAst);
+
+// 4. Both expressions work identically
+const result1 = await expr1.evaluate({}, { x: 5, y: 3 }); // 13
+const result2 = await expr2.evaluate({}, { x: 5, y: 3 }); // 13
+```
+
+**Use Cases:**
+- Cache compiled expressions as JSON for faster application startup
+- Transfer expressions between processes, services, or storage systems
+- Version control and database storage of transformation logic
+- Hot-reload expressions without re-parsing
+- Expression introspection and analysis tools
 
 ### Custom Bindings
 Pass `bindings` to `evaluate` to set parameter variables or override thresholds (`throwLevel`, etc.).

@@ -2024,7 +2024,7 @@ var fumifier = (function() {
 
   /**
      * Fumifier
-     * @param {string} expr - FUME mapping expression as text
+     * @param {string|Object} expr - FUME mapping expression as text, or pre-parsed AST object
      * @param {FumifierOptions} [options]
      * @returns {Promise<FumifierCompiled>} Compiled expression object
      */
@@ -2036,12 +2036,29 @@ var fumifier = (function() {
     var compiledFhirRegex = {};
 
     try {
-      // syntactic parsing only (sync) - may throw on syntax errors
-      ast = parser(expr, options && options.recover);
-
-      // initial parsing done
-      errors = ast.errors;
-      delete ast.errors;
+      if (typeof expr === 'string') {
+        // Parse string expression normally
+        ast = parser(expr, options && options.recover);
+        // initial parsing done - extract errors if they exist
+        if (ast.errors) {
+          errors = ast.errors;
+          delete ast.errors;
+        }
+      } else if (typeof expr === 'object' && expr !== null) {
+        // Assume it's a pre-parsed AST object that's already fully processed
+        if (!expr.hasOwnProperty('type')) {
+          throw new Error('Invalid AST: AST object must have a "type" property');
+        }
+        // Create a copy to avoid mutating the input AST
+        ast = JSON.parse(JSON.stringify(expr));
+        // If AST has errors from recovery mode, extract them
+        if (ast.errors && Array.isArray(ast.errors)) {
+          errors = [...ast.errors];
+          delete ast.errors;
+        }
+      } else {
+        throw new Error('Expression must be either a string or an AST object');
+      }
       // post-parse FLASH processing (async)
       // - only if a navigator was provided
       // - only if the AST contains flash blocks
@@ -2273,6 +2290,231 @@ var fumifier = (function() {
     return fumifierObject;
 
   }
+
+  /**
+   * Create a fumifier object from an existing AST
+   * @param {Object} astJson - The AST object (can be from JSON.parse)
+   * @param {FumifierOptions} [options] - Options including navigator, recover, etc.
+   * @returns {Promise<FumifierCompiled>} Compiled expression object
+   */
+  fumifier.fromAst = async function(astJson, options) {
+    if (!astJson || typeof astJson !== 'object') {
+      throw new Error('Invalid AST: AST must be a valid object');
+    }
+
+    // Validate that this looks like a valid AST
+    if (!astJson.hasOwnProperty('type')) {
+      throw new Error('Invalid AST: AST must have a "type" property');
+    }
+
+    var ast = astJson;
+    var errors = [];
+    var navigator = options && options.navigator;
+    var recover = options && options.recover;
+    var compiledFhirRegex = {};
+
+    try {
+      // If AST has errors from recovery mode, extract them
+      if (ast.errors && Array.isArray(ast.errors)) {
+        errors = ast.errors;
+        // Don't delete errors from AST since we're working with a copy
+        ast = { ...ast };
+        delete ast.errors;
+      }
+
+      // Handle FLASH processing if needed
+      if (ast && ast.containsFlash === true) {
+        if (!navigator) {
+          var err = {
+            code: 'F1000',
+            position: 0,
+          };
+
+          if (recover) {
+            err.type = 'error';
+            errors.push(err);
+          } else {
+            err.stack = (new Error()).stack;
+            throw err;
+          }
+        } else {
+          // resolve all FHIR definition required for evaluation
+          ast = await resolveDefinitions(ast, navigator, recover, errors, compiledFhirRegex);
+        }
+      }
+    } catch(err) {
+      // insert error message into structure
+      populateMessage(err); // possible side-effects on `err`
+      throw err;
+    }
+
+    var environment = createFrame(staticFrame);
+
+    // Threshold defaults (scoped variables)
+    environment.bind('throwLevel', 30);
+    environment.bind('logLevel', 40);
+    environment.bind('collectLevel', 70);
+    environment.bind('validationLevel', 30);
+
+    // Global logger for this compiled expression (not exposed to expressions)
+    environment.bind(SYM.logger, createDefaultLogger());
+
+    var timestamp = new Date(); // will be overridden on each call to evaluate()
+    var executionId = utils.generateUuid(); // will be overridden on each call to evaluate()
+    environment.bind('now', defineFunction(function(picture, timezone) {
+      return datetime.fromMillis(timestamp.getTime(), picture, timezone);
+    }, '<s?s?:s>'));
+    environment.bind('millis', defineFunction(function() {
+      return timestamp.getTime();
+    }, '<:n>'));
+    environment.bind('executionId', executionId);
+
+    // bind a GETTER for compiled FHIR regexes
+    environment.bind(Symbol.for('fumifier.__compiledFhirRegex_GET'), function(regexStr) {
+      if (compiledFhirRegex.hasOwnProperty(regexStr)) {
+        return compiledFhirRegex[regexStr];
+      }
+      return undefined;
+    });
+
+    // bind a SETTER for compiled FHIR regexes
+    environment.bind(Symbol.for('fumifier.__compiledFhirRegex_SET'), function(regexStr) {
+      const compiled = new RegExp(`^${regexStr}$`);
+      compiledFhirRegex[regexStr] = compiled;
+      return compiled;
+    });
+
+    // Expose navigator and compiled regex cache to inner $eval() via environment lookup
+    environment.bind(Symbol.for('fumifier.__navigator'), navigator);
+    environment.bind(Symbol.for('fumifier.__compiledFhirRegex_OBJ'), compiledFhirRegex);
+
+    // bind the resolved definition collections
+    environment.bind(Symbol.for('fumifier.__resolvedDefinitions'), {
+      typeMeta: ast.resolvedTypeMeta,
+      baseTypeMeta: ast.resolvedBaseTypeMeta,
+      typeChildren: ast.resolvedTypeChildren,
+      elementDefinitions: ast.resolvedElementDefinitions,
+      elementChildren: ast.resolvedElementChildren,
+      resolvedValueSetExpansions: ast.resolvedValueSetExpansions // added so flashEvaluator can access VS expansions
+    });
+
+    var fumifierObject = {
+      evaluate: async function (input, bindings, callback) {
+        if (typeof bindings === 'function') {
+          callback = bindings;
+          bindings = {};
+        }
+        // Set up execution environment
+        var exec_env = createFrame(environment);
+
+        if(bindings) {
+          for (let variable in bindings) {
+            exec_env.bind(variable, bindings[variable]);
+          }
+        }
+
+        if (callback) {
+          exec_env.bind(SYM.evaluateCallback, callback);
+        }
+
+        const bag = { error: [], warning: [], debug: [] };
+        exec_env.bind(SYM.diagnostics, bag);
+        exec_env.bind('$', input);
+
+        timestamp = new Date();
+        executionId = utils.generateUuid();
+        exec_env.timestamp = timestamp;
+        exec_env.executionId = executionId;
+        exec_env.bind('executionId', executionId);
+        if(Array.isArray(input) && !isSequence(input)) {
+          input = createSequence(input);
+          input.outerWrapper = true;
+        }
+
+        let result = await evaluate(ast, input, exec_env);
+
+        return result;
+      },
+      evaluateVerbose: async function(input, bindings) {
+        // Set up execution environment
+        var exec_env = createFrame(environment);
+
+        if(bindings) {
+          for (let variable in bindings) {
+            exec_env.bind(variable, bindings[variable]);
+          }
+        }
+
+        const bag = { error: [], warning: [], debug: [] };
+        exec_env.bind(SYM.diagnostics, bag);
+        exec_env.bind('$', input);
+
+        timestamp = new Date();
+        executionId = utils.generateUuid();
+        exec_env.timestamp = timestamp;
+        exec_env.executionId = executionId;
+        exec_env.bind('executionId', executionId);
+        if(Array.isArray(input) && !isSequence(input)) {
+          input = createSequence(input);
+          input.outerWrapper = true;
+        }
+
+        let result;
+        try {
+          result = await evaluate(ast, input, exec_env);
+        } catch (err) {
+          populateMessage(err);
+          if (exec_env && exec_env.executionId) {
+            err.executionId = exec_env.executionId;
+          }
+          push(exec_env, err);
+        }
+
+        const status = (function computeStatus() {
+          const { throwLevel } = thresholds(exec_env);
+          const numSev = (e) => (typeof e.severity === 'number' ? e.severity : severityFromCode(e.code));
+          const hasFatal = (bag.error || []).some(e => numSev(e) === LEVELS.fatal);
+          const hasInvalid = (bag.error || []).some(e => {
+            const s = numSev(e);
+            return s >= LEVELS.invalid && s < LEVELS.error;
+          });
+          const hasThrowables = ['error','warning','debug'].some(bn =>
+            (bag[bn] || []).some(e => numSev(e) < throwLevel)
+          );
+          if (hasFatal) return 422;
+          if (!hasThrowables && !hasInvalid) return 200;
+          if (!hasThrowables && hasInvalid) return 206;
+          return 206;
+        })();
+
+        return { ok: status === 200, status, result, diagnostics: bag, executionId: exec_env.executionId };
+      },
+      assign: function (name, value) {
+        environment.bind(name, value);
+      },
+      registerFunction: function(name, implementation, signature) {
+        var func = defineFunction(implementation, signature);
+        environment.bind(name, func);
+      },
+      setLogger: function(newLogger) {
+        let lg;
+        if (newLogger && typeof newLogger.debug === 'function' && typeof newLogger.info === 'function' && typeof newLogger.warn === 'function' && typeof newLogger.error === 'function') {
+          lg = newLogger;
+        } else {
+          lg = createDefaultLogger();
+        }
+        environment.bind(SYM.logger, lg);
+      },
+      ast: function() {
+        return ast;
+      },
+      errors: function() {
+        return errors;
+      }
+    };
+
+    return fumifierObject;
+  };
 
   return fumifier;
 
