@@ -2049,7 +2049,7 @@ var fumifier = (function() {
         }
       } else if (typeof expr === 'object' && expr !== null) {
         // Assume it's a pre-parsed AST object that's already fully processed
-        if (!expr.hasOwnProperty('type')) {
+        if (!Object.prototype.hasOwnProperty.call(expr, 'type')) {
           throw new Error('Invalid AST: AST object must have a "type" property');
         }
         // Create a copy to avoid mutating the input AST
