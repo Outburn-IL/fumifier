@@ -15,11 +15,13 @@ jobs:
             -H "Authorization: token ${{ secrets.DOWNSTREAM_TOKEN }}" \
             -H "Content-Type: application/json" \
             "${{ secrets.DOWNSTREAM_WEBHOOK_URL }}" \
-            -d '{
-              "event_type": "source-updated",
-              "client_payload": {
-                "ref": "${{ github.event.release.tag_name }}",
-                "sha": "${{ github.sha }}",
-                "release_id": "${{ github.event.release.id }}"
-              }
-            }'
+            -d @- <<EOF
+          {
+            "event_type": "source-updated",
+            "client_payload": {
+              "ref": "${{ github.event.release.tag_name }}",
+              "sha": "${{ github.sha }}",
+              "release_id": "${{ github.event.release.id }}"
+            }
+          }
+          EOF
