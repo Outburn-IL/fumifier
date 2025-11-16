@@ -19,11 +19,11 @@ void async function () {
   var navigator = new FhirStructureNavigator(generator);
 
   var expression = `
-  InstanceOf: bp
-  * status = 'final'
-  * subject.reference = 'Patient/123'
-  * effectiveDateTime = '2023-10-01T00:00:00Z'
-  * component[SystolicBP].value = {'value':'120.5gds'}
+  InstanceOf: Extension
+  * url = 'http://example.org/fhir/StructureDefinition/SystolicBP'
+  * ($index := 0; 8).extension
+    * url = 'abc' & $string($index)
+    * valueString = 'value' & $string($index + 1)
 
 `
 ;

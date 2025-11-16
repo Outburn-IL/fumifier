@@ -1,0 +1,5 @@
+InstanceOf: Extension
+* url = 'http://example.org/fhir/StructureDefinition/SystolicBP'
+* (([1..5])@$value#$index).extension
+  * url = 'abc' & $string($index)
+  * valueString = 'value' & $string($value)

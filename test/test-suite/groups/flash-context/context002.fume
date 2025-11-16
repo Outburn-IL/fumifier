@@ -1,0 +1,5 @@
+InstanceOf: Extension
+* url = 'http://example.org/fhir/StructureDefinition/StringArray'
+* ((['apple', 'banana', 'cherry'])@$fruit#$position).extension
+  * url = 'fruit-' & $string($position)
+  * valueString = $fruit

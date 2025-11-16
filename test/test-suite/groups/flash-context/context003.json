@@ -1,0 +1,51 @@
+{
+  "skip": false,
+  "description": "Nested extensions with focus and index bindings",
+  "data": null,
+  "bindings": {},
+  "result": {
+    "extension": [
+      {
+        "extension": [
+          {
+            "url": "index",
+            "valueInteger": 0
+          },
+          {
+            "url": "value",
+            "valueInteger": 1
+          }
+        ],
+        "url": "level-1"
+      },
+      {
+        "extension": [
+          {
+            "url": "index",
+            "valueInteger": 1
+          },
+          {
+            "url": "value",
+            "valueInteger": 2
+          }
+        ],
+        "url": "level-2"
+      },
+      {
+        "extension": [
+          {
+            "url": "index",
+            "valueInteger": 2
+          },
+          {
+            "url": "value",
+            "valueInteger": 3
+          }
+        ],
+        "url": "level-3"
+      }
+    ],
+    "url": "http://example.org/fhir/StructureDefinition/NestedExtension"
+  },
+  "expr-file": "context003.fume"
+}

@@ -1,0 +1,5 @@
+InstanceOf: Extension
+* url = 'http://example.org/fhir/StructureDefinition/SystolicBP'
+* ($var := 'abc').extension
+  * url = $
+  * valueString = $var

@@ -1,0 +1,10 @@
+InstanceOf: Extension
+* url = 'http://example.org/fhir/StructureDefinition/NestedExtension'
+* (([1..3])@$level#$idx).extension
+  * url = 'level-' & $string($level)
+  * extension
+    * url = 'index'
+    * valueInteger = $idx
+  * extension
+    * url = 'value'
+    * valueInteger = $level

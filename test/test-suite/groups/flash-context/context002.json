@@ -1,0 +1,24 @@
+{
+  "skip": false,
+  "description": "Focus and index binding with string array and custom variable names",
+  "data": null,
+  "bindings": {},
+  "result": {
+    "extension": [
+      {
+        "url": "fruit-0",
+        "valueString": "apple"
+      },
+      {
+        "url": "fruit-1",
+        "valueString": "banana"
+      },
+      {
+        "url": "fruit-2",
+        "valueString": "cherry"
+      }
+    ],
+    "url": "http://example.org/fhir/StructureDefinition/StringArray"
+  },
+  "expr-file": "context002.fume"
+}

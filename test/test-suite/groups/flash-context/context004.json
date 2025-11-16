@@ -1,0 +1,16 @@
+{
+  "skip": false,
+  "description": "Regular variable binding and context inheritance",
+  "data": null,
+  "bindings": {},
+  "result": {
+    "extension": [
+      {
+        "url": "abc",
+        "valueString": "abc"
+      }
+    ],
+    "url": "http://example.org/fhir/StructureDefinition/SystolicBP"
+  },
+  "expr-file": "context004.fume"
+}

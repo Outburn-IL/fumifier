@@ -1,0 +1,32 @@
+{
+  "skip": false,
+  "description": "Basic focus and index binding with numeric range in FLASH context",
+  "data": null,
+  "bindings": {},
+  "result": {
+    "extension": [
+      {
+        "url": "abc0",
+        "valueString": "value1"
+      },
+      {
+        "url": "abc1",
+        "valueString": "value2"
+      },
+      {
+        "url": "abc2",
+        "valueString": "value3"
+      },
+      {
+        "url": "abc3",
+        "valueString": "value4"
+      },
+      {
+        "url": "abc4",
+        "valueString": "value5"
+      }
+    ],
+    "url": "http://example.org/fhir/StructureDefinition/SystolicBP"
+  },
+  "expr-file": "context001.fume"
+}
