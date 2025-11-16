@@ -125,7 +125,7 @@ function contextualize(rule) {
   // If the rule has a context, convert it to a path with the context as lhs and rule as rhs.
   // extract context and unblock it if it's a single expression to allow variable scope inheritance
   const lhs = unblockSingleExpression(toBlock(rule.context));
-  // extract rule and ensure it's a self-contained block so the path is correctly processsed for parent references
+  // extract rule and ensure it's a self-contained block so the path is correctly processed for parent references
   const rhs = toBlock(rule);
   // remove context from the rule to avoid duplication
   delete rule.context;
