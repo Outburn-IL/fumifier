@@ -10,7 +10,9 @@ jobs:
     steps:
       - name: Send downstream notification
         run: |
-          curl -fsSL -X POST \
+          echo "Sending webhook to: ${{ secrets.DOWNSTREAM_WEBHOOK_URL }}"
+          
+          response=$(curl -w "%{http_code}" -s -X POST \
             -H "Accept: application/vnd.github.v3+json" \
             -H "Authorization: token ${{ secrets.DOWNSTREAM_TOKEN }}" \
             -H "Content-Type: application/json" \
@@ -25,3 +27,17 @@ jobs:
             }
           }
           EOF
+          )
+          
+          http_code="${response: -3}"
+          response_body="${response%???}"
+          
+          echo "HTTP Status: $http_code"
+          echo "Response: $response_body"
+          
+          if [ "$http_code" != "204" ]; then
+            echo "Webhook failed with status $http_code"
+            exit 1
+          fi
+          
+          echo "Webhook sent successfully"
