@@ -2082,7 +2082,7 @@ var fumifier = (function() {
     // Global logger for this compiled expression (not exposed to expressions)
     environment.bind(SYM.logger, createDefaultLogger());
 
-    var timestamp = new Date(); // will be overridden on each call to evalute()
+    var timestamp = new Date(); // will be overridden on each call to evaluate()
     var executionId = utils.generateUuid(); // will be overridden on each call to evaluate()
     environment.bind('now', defineFunction(function(picture, timezone) {
       return datetime.fromMillis(timestamp.getTime(), picture, timezone);
