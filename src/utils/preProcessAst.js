@@ -123,8 +123,8 @@ function contextualize(rule) {
     return rule;
   }
   // If the rule has a context, convert it to a path with the context as lhs and rule as rhs.
-  // extract context and ensure it's a self-contained block
-  const lhs = toBlock(rule.context);
+  // extract context and unblock it if it's a single expression to allow variable scope inheritance
+  const lhs = unblockSingleExpression(toBlock(rule.context));
   // extract rule and ensure it's a self-contained block so the path is correctly processsed for parent references
   const rhs = toBlock(rule);
   // remove context from the rule to avoid duplication
@@ -255,6 +255,22 @@ function toBlock (expr) {
     start: expr.start,
     expressions: [expr]
   };
+}
+
+/**
+ * Unblock a block expression if it contains only a single expression.
+ * This allows variable bindings in the block to be accessible to following expressions.
+ * Blocks with multiple expressions (with ; separators) are kept as blocks to maintain their scope.
+ * @param {*} expr - The expression to potentially unblock
+ * @returns {object} - The unblocked expression or the original block
+ */
+function unblockSingleExpression(expr) {
+  if (expr.type === 'block' && expr.expressions && expr.expressions.length === 1) {
+    // Single expression block - return the inner expression to avoid closed scope
+    return expr.expressions[0];
+  }
+  // Not a single-expression block, return as is
+  return expr;
 }
 
 export default preProcessAst;
