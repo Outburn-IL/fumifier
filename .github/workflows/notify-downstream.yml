@@ -1,0 +1,27 @@
+name: Notify Downstream
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send downstream notification
+        run: |
+          curl -fsSL -X POST \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: token ${{ secrets.DOWNSTREAM_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            "${{ secrets.DOWNSTREAM_WEBHOOK_URL }}" \
+            -d @- <<EOF
+          {
+            "event_type": "source-updated",
+            "client_payload": {
+              "ref": "${{ github.event.release.tag_name }}",
+              "sha": "${{ github.sha }}",
+              "release_id": "${{ github.event.release.id }}"
+            }
+          }
+          EOF
