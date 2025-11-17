@@ -170,7 +170,7 @@ Compiled object methods:
 - `ast()` – returns internal AST
 - `errors()` – returns compilation errors (if any)
 
-### AST Mobility ⭐ **New in v0.12.0**
+### AST Mobility ⭐ **New in v1.0.0**
 Fumifier now supports "AST mobility" - the ability to serialize and recreate compiled expressions:
 
 ```js
