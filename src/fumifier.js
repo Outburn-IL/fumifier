@@ -2051,7 +2051,7 @@ var fumifier = (function() {
         // Use the AST object directly - no cloning needed
         // AST mutations only happen during FLASH resolution
         ast = expr;
-        
+
         // Ensure errors array exists in AST
         if (!ast.errors) {
           ast.errors = [];
