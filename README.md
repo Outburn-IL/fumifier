@@ -39,7 +39,7 @@ Fumifier compiles a FLASH expression string to an executable object, then evalua
 ---
 ## 2. Feature Highlights
 - Modern ES Module implementation (Node ≥ 20)
-- **AST Mobility** ⭐ **New in v0.12.0** – serialize/deserialize compiled expressions as JSON
+- **AST Mobility** ⭐ **New in v1.0.0** – serialize/deserialize compiled expressions as JSON
 - Async evaluation pipeline with selective short‑circuiting
 - FLASH blocks & rules lowered into native evaluator stages
 - Tuple streams & ancestry tracking for context‑rich transformations
