@@ -11,6 +11,7 @@ describe('Invoke parser with valid expression', function() {
       var ast = expr.ast();
       var expected_ast = {
         "type": "path",
+        "errors": [],
         "steps": [
           {
             "value": "Account",
@@ -36,7 +37,7 @@ describe('Invoke parser with valid expression', function() {
         ]
       };
       var errors = expr.errors();
-      var expected_errors = undefined;
+      var expected_errors = [];
       assert.deepEqual(ast, expected_ast);
       assert.deepEqual(errors, expected_errors);
     });
@@ -50,6 +51,13 @@ describe('Invoke parser with incomplete expression', function() {
       var ast = expr.ast();
       var expected_ast = {
         "type": "path",
+        "errors": [
+          {
+            "code": "S0207",
+            "line":1,"position": 8, start: 7,
+            "token": "(end)"
+          }
+        ],
         "steps": [
           {
             "value": "Account",
@@ -85,6 +93,20 @@ describe('Invoke parser with incomplete expression', function() {
       var ast = expr.ast();
       var expected_ast = {
         "type": "path",
+        "errors": [
+          {
+            "code": "S0203",
+            "line":1,"position": 8, start: 7,
+            "token": "(end)",
+            "value": "]",
+            "remaining": []
+          },
+          {
+            "code": "S0207",
+            "line":1,"position": 8, start: 7,
+            "token": "(end)"
+          }
+        ],
         "steps": [
           {
             "value": "Account",
@@ -107,23 +129,7 @@ describe('Invoke parser with incomplete expression', function() {
           }
         ]
       };
-      var errors = expr.errors();
-      var expected_errors =   [
-        {
-          "code": "S0203",
-          "line":1,"position": 8, start: 7,
-          "token": "(end)",
-          "value": "]",
-          "remaining": []
-        },
-        {
-          "code": "S0207",
-          "line":1,"position": 8, start: 7,
-          "token": "(end)"
-        }
-      ];
       assert.deepEqual(ast, expected_ast);
-      assert.deepEqual(errors, expected_errors);
     });
   });
 
@@ -133,6 +139,33 @@ describe('Invoke parser with incomplete expression', function() {
       var ast = expr.ast();
       var expected_ast = {
         "type": "path",
+        "errors": [
+          {
+            "code": "S0211",
+            "token": ";",
+            "line":1,"position": 15, start: 14,
+            "remaining": [
+              {"value": 0, "type": "number", "line":1,"position": 16, start: 15},
+              {"type": "operator", "value": "]", "line":1,"position": 17, start: 16},
+              {"type": "operator", "value": ".", "line":1,"position": 18, start: 17},
+              {"type": "name", "value": "Product", "line":1,"position": 25, start: 18}
+            ],
+            "type": "error"
+          },
+          {
+            "code": "S0202",
+            "line":1,"position": 16, start: 15,
+            "token": "0",
+            "value": "]",
+            "remaining": [
+              {
+                "value": 0,
+                "type": "number",
+                "line":1,"position": 16, start: 15
+              }
+            ]
+          }
+        ],
         "steps": [
           {
             "value": "Account",
@@ -164,36 +197,7 @@ describe('Invoke parser with incomplete expression', function() {
           }
         ]
       };
-      var errors = expr.errors();
-      var expected_errors =   [
-        {
-          "code": "S0211",
-          "token": ";",
-          "line":1,"position": 15, start: 14,
-          "remaining": [
-            {"value": 0, "type": "number", "line":1,"position": 16, start: 15},
-            {"type": "operator", "value": "]", "line":1,"position": 17, start: 16},
-            {"type": "operator", "value": ".", "line":1,"position": 18, start: 17},
-            {"type": "name", "value": "Product", "line":1,"position": 25, start: 18}
-          ],
-          "type": "error"
-        },
-        {
-          "code": "S0202",
-          "line":1,"position": 16, start: 15,
-          "token": "0",
-          "value": "]",
-          "remaining": [
-            {
-              "value": 0,
-              "type": "number",
-              "line":1,"position": 16, start: 15
-            }
-          ]
-        }
-      ];
       assert.deepEqual(ast, expected_ast);
-      assert.deepEqual(errors, expected_errors);
     });
   });
 
@@ -203,6 +207,20 @@ describe('Invoke parser with incomplete expression', function() {
       var ast = expr.ast();
       var expected_ast = {
         "type": "path",
+        "errors": [
+          {
+            "code": "S0202",
+            "line":1,"position": 16, start: 15,
+            "token": ";",
+            "value": "]",
+            "remaining": [
+              {"value": ";", "type": "operator", "line":1,"position": 16, "start": 15},
+              {"type": "operator", "value": "]", "line":1,"position": 17, "start": 16},
+              {"type": "operator", "value": ".", "line":1,"position": 18, "start": 17},
+              {"type": "name", "value": "Product", "line":1,"position": 25, "start": 18}
+            ]
+          }
+        ],
         "steps": [
           {
             "value": "Account",
@@ -227,23 +245,7 @@ describe('Invoke parser with incomplete expression', function() {
           }
         ]
       };
-      var errors = expr.errors();
-      var expected_errors =   [
-        {
-          "code": "S0202",
-          "line":1,"position": 16, start: 15,
-          "token": ";",
-          "value": "]",
-          "remaining": [
-            {"value": ";", "type": "operator", "line":1,"position": 16, "start": 15},
-            {"type": "operator", "value": "]", "line":1,"position": 17, "start": 16},
-            {"type": "operator", "value": ".", "line":1,"position": 18, "start": 17},
-            {"type": "name", "value": "Product", "line":1,"position": 25, "start": 18}
-          ]
-        }
-      ];
       assert.deepEqual(ast, expected_ast);
-      assert.deepEqual(errors, expected_errors);
     });
   });
 
@@ -308,6 +310,75 @@ describe('Invoke parser with incomplete expression', function() {
       var ast = expr.ast();
       var expected_ast = {
         "type": "path",
+        "errors": [
+          {
+            "code": "F1100",
+            "line":1,"position": 38, start: 37,
+            "predicate": [
+              {
+                "expr": {
+                  "error": {
+                    "code": "S0207",
+                    "line":1,"position": 46, start: 45,
+                    "token": "(end)"
+                  },
+                  "type": "error"
+                },
+                "line":1,"position": 39, start: 38,
+                "type": "filter"
+              }
+            ],
+            "remaining": [
+              {
+                "line":1,"position": 39, start: 38,
+                "type": "operator",
+                "value": "["
+              },
+              {
+                "line":1,"position": 40, start: 39,
+                "type": "number",
+                "value": 0
+              },
+              {
+                "line":1,"position": 41, start: 40,
+                "type": "operator",
+                "value": "]"
+              },
+              {
+                "line":1,"position": 42, start: 41,
+                "type": "operator",
+                "value": "."
+              },
+              {
+                "line":1,"position": 46, start: 42,
+                "type": "name",
+                "value": "Text"
+              }
+            ],
+            "token": ")",
+            "matchingOpening": "(",
+            "type": "error"
+          },
+          {
+            "code": "S0203",
+            "line":1,"position": 46, start: 45,
+            "remaining": [],
+            "token": "(end)",
+            "value": "]"
+          },
+          {
+            "code": "S0203",
+            "line":1,"position": 46, start: 45,
+            "remaining": [],
+            "token": "(end)",
+            "value": ")"
+          },
+          {
+            "code": "S0207",
+            "line":1,"position": 46, start: 45,
+            "token": "(end)"
+          }
+        ],
         "steps": [
           {
             "value": "inputSource",
@@ -389,78 +460,7 @@ describe('Invoke parser with incomplete expression', function() {
           }
         ]
       };
-      var errors = expr.errors();
-      var expected_errors = [
-        {
-          "code": "F1100",
-          "line":1,"position": 38, start: 37,
-          "predicate": [
-            {
-              "expr": {
-                "error": {
-                  "code": "S0207",
-                  "line":1,"position": 46, start: 45,
-                  "token": "(end)"
-                },
-                "type": "error"
-              },
-              "line":1,"position": 39, start: 38,
-              "type": "filter"
-            }
-          ],
-          "remaining": [
-            {
-              "line":1,"position": 39, start: 38,
-              "type": "operator",
-              "value": "["
-            },
-            {
-              "line":1,"position": 40, start: 39,
-              "type": "number",
-              "value": 0
-            },
-            {
-              "line":1,"position": 41, start: 40,
-              "type": "operator",
-              "value": "]"
-            },
-            {
-              "line":1,"position": 42, start: 41,
-              "type": "operator",
-              "value": "."
-            },
-            {
-              "line":1,"position": 46, start: 42,
-              "type": "name",
-              "value": "Text"
-            }
-          ],
-          "token": ")",
-          "matchingOpening": "(",
-          "type": "error"
-        },
-        {
-          "code": "S0203",
-          "line":1,"position": 46, start: 45,
-          "remaining": [],
-          "token": "(end)",
-          "value": "]"
-        },
-        {
-          "code": "S0203",
-          "line":1,"position": 46, start: 45,
-          "remaining": [],
-          "token": "(end)",
-          "value": ")"
-        },
-        {
-          "code": "S0207",
-          "line":1,"position": 46, start: 45,
-          "token": "(end)"
-        }
-      ];
       assert.deepEqual(ast, expected_ast);
-      assert.deepEqual(errors, expected_errors);
     });
   });
 

@@ -2024,29 +2024,51 @@ var fumifier = (function() {
 
   /**
      * Fumifier
-     * @param {string} expr - FUME mapping expression as text
+     * @param {string|Object} expr - FUME mapping expression as text, or pre-parsed AST object
      * @param {FumifierOptions} [options]
      * @returns {Promise<FumifierCompiled>} Compiled expression object
      */
   async function fumifier(expr, options) {
     var ast;
-    var errors;
     var navigator = options && options.navigator;
     var recover = options && options.recover;
     var compiledFhirRegex = {};
 
     try {
-      // syntactic parsing only (sync) - may throw on syntax errors
-      ast = parser(expr, options && options.recover);
+      if (typeof expr === 'string') {
+        // Parse string expression normally
+        ast = parser(expr, options && options.recover);
+        // Ensure errors array exists in AST
+        if (!ast.errors) {
+          ast.errors = [];
+        }
+      } else if (typeof expr === 'object' && expr !== null) {
+        // Assume it's a pre-parsed AST object
+        if (!Object.prototype.hasOwnProperty.call(expr, 'type')) {
+          throw new Error('Invalid AST: AST object must have a "type" property');
+        }
 
-      // initial parsing done
-      errors = ast.errors;
-      delete ast.errors;
+        // Use the AST object directly - no cloning needed
+        // AST mutations only happen during FLASH resolution
+        ast = expr;
+
+        // Ensure errors array exists in AST
+        if (!ast.errors) {
+          ast.errors = [];
+        }
+      } else {
+        throw new Error('Expression must be either a string or an AST object');
+      }
       // post-parse FLASH processing (async)
       // - only if a navigator was provided
       // - only if the AST contains flash blocks
       // - throws if has flash and no navigator
       if (ast && ast.containsFlash === true) {
+        // Check if AST is already resolved (has any of the resolved properties)
+        const isAlreadyResolved = ast.resolvedTypeMeta || ast.resolvedBaseTypeMeta ||
+                                ast.resolvedTypeChildren || ast.resolvedElementDefinitions ||
+                                ast.resolvedElementChildren || ast.resolvedValueSetExpansions;
+
         if (!navigator) {
           var err = {
             code: 'F1000',
@@ -2055,15 +2077,16 @@ var fumifier = (function() {
 
           if (recover) {
             err.type = 'error';
-            errors.push(err);
+            ast.errors.push(err);
           } else {
             err.stack = (new Error()).stack;
             throw err;
           }
-        } else {
-          // resolve all FHIR definition required for evaluation
-          ast = await resolveDefinitions(ast, navigator, recover, errors, compiledFhirRegex);
+        } else if (!isAlreadyResolved) {
+          // Only resolve FHIR definitions if not already resolved
+          ast = await resolveDefinitions(ast, navigator, recover, ast.errors, compiledFhirRegex);
         }
+        // If already resolved, we can skip resolution and proceed directly to evaluation
       }
     } catch(err) {
       // insert error message into structure
@@ -2126,7 +2149,7 @@ var fumifier = (function() {
         var exec_env;
         try {
           // throw if the expression compiled with syntax errors
-          if(typeof errors !== 'undefined') {
+          if(ast.errors && ast.errors.length > 0) {
             var err = {
               code: 'S0500',
               position: 0
@@ -2266,7 +2289,7 @@ var fumifier = (function() {
         return ast;
       },
       errors: function() {
-        return errors;
+        return ast.errors || [];
       }
     };
 
