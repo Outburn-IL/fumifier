@@ -2030,7 +2030,6 @@ var fumifier = (function() {
      */
   async function fumifier(expr, options) {
     var ast;
-    var errors;
     var navigator = options && options.navigator;
     var recover = options && options.recover;
     var compiledFhirRegex = {};
@@ -2039,13 +2038,9 @@ var fumifier = (function() {
       if (typeof expr === 'string') {
         // Parse string expression normally
         ast = parser(expr, options && options.recover);
-        // initial parsing done - extract errors if they exist
-        if (ast.errors) {
-          errors = ast.errors;
-          delete ast.errors;
-        } else {
-          // Initialize errors array for strings without parsing errors
-          errors = [];
+        // Ensure errors array exists in AST
+        if (!ast.errors) {
+          ast.errors = [];
         }
       } else if (typeof expr === 'object' && expr !== null) {
         // Assume it's a pre-parsed AST object
@@ -2053,17 +2048,13 @@ var fumifier = (function() {
           throw new Error('Invalid AST: AST object must have a "type" property');
         }
 
-        // No cloning needed - AST mutations only happen during FLASH resolution,
-        // and after resolution, ASTs are never mutated again
+        // Use the AST object directly - no cloning needed
+        // AST mutations only happen during FLASH resolution
         ast = expr;
-
-        // If AST has errors from recovery mode, extract them
-        if (ast.errors && Array.isArray(ast.errors)) {
-          errors = [...ast.errors];
-          delete ast.errors;
-        } else {
-          // Initialize errors array for AST objects without errors
-          errors = [];
+        
+        // Ensure errors array exists in AST
+        if (!ast.errors) {
+          ast.errors = [];
         }
       } else {
         throw new Error('Expression must be either a string or an AST object');
@@ -2086,14 +2077,14 @@ var fumifier = (function() {
 
           if (recover) {
             err.type = 'error';
-            errors.push(err);
+            ast.errors.push(err);
           } else {
             err.stack = (new Error()).stack;
             throw err;
           }
         } else if (!isAlreadyResolved) {
           // Only resolve FHIR definitions if not already resolved
-          ast = await resolveDefinitions(ast, navigator, recover, errors, compiledFhirRegex);
+          ast = await resolveDefinitions(ast, navigator, recover, ast.errors, compiledFhirRegex);
         }
         // If already resolved, we can skip resolution and proceed directly to evaluation
       }
@@ -2158,7 +2149,7 @@ var fumifier = (function() {
         var exec_env;
         try {
           // throw if the expression compiled with syntax errors
-          if(typeof errors !== 'undefined' && errors.length > 0) {
+          if(ast.errors && ast.errors.length > 0) {
             var err = {
               code: 'S0500',
               position: 0
@@ -2298,7 +2289,7 @@ var fumifier = (function() {
         return ast;
       },
       errors: function() {
-        return errors;
+        return ast.errors || [];
       }
     };
 
