@@ -257,4 +257,67 @@ describe('AST Mobility Feature', function() {
     assert.deepEqual(originalResult, recreatedResult);
     assert.equal(originalResult.length, 2); // Two items with price > 10
   });
+
+  it('should populate and preserve normalizedRootPackages for FLASH expressions', async function() {
+    // Test a FLASH expression that should trigger normalized root package extraction
+    const flashExpr = `InstanceOf: Patient
+* id = 'mobility-test-patient'
+* name
+  * given = "Package"
+  * family = "Mobility"
+* gender = "unknown"`;
+
+    const originalExpr = await fumifier(flashExpr, { navigator });
+    const originalAst = originalExpr.ast();
+
+    // Verify that normalizedRootPackages was populated during compilation
+    assert.ok(originalAst.normalizedRootPackages, 'normalizedRootPackages should be populated for FLASH expressions');
+    assert.ok(Array.isArray(originalAst.normalizedRootPackages), 'normalizedRootPackages should be an array');
+    assert.ok(originalAst.normalizedRootPackages.length > 0, 'normalizedRootPackages should contain package information');
+
+    // Verify the structure of normalized packages (should have id and version)
+    const firstPackage = originalAst.normalizedRootPackages[0];
+    assert.ok(typeof firstPackage === 'object', 'Each package should be an object');
+    assert.ok(typeof firstPackage.id === 'string', 'Package should have an id string');
+    assert.ok(typeof firstPackage.version === 'string', 'Package should have a version string');
+
+    // Serialize and deserialize the AST (simulating AST mobility)
+    const astJson = JSON.stringify(originalAst);
+    const deserializedAst = JSON.parse(astJson);
+
+    // Verify normalizedRootPackages is preserved during serialization
+    assert.deepEqual(deserializedAst.normalizedRootPackages, originalAst.normalizedRootPackages,
+      'normalizedRootPackages should be preserved during JSON serialization/deserialization');
+
+    // Create new fumifier object from deserialized AST with navigator
+    const recreatedExpr = await fumifier(deserializedAst, { navigator });
+    const recreatedAst = recreatedExpr.ast();
+
+    // Verify normalizedRootPackages is preserved after recreation
+    assert.deepEqual(recreatedAst.normalizedRootPackages, originalAst.normalizedRootPackages,
+      'normalizedRootPackages should be preserved after AST recreation');
+
+    // Both should evaluate to the same result
+    const originalResult = await originalExpr.evaluate({});
+    const recreatedResult = await recreatedExpr.evaluate({});
+
+    assert.deepEqual(originalResult, recreatedResult);
+    assert.equal(originalResult.resourceType, "Patient");
+    assert.equal(originalResult.id, "mobility-test-patient");
+  });
+
+  it('should not populate normalizedRootPackages for non-FLASH expressions', async function() {
+    // Test a regular JSONata expression (no FLASH content)
+    const regularExpr = await fumifier('1 + 2');
+    const regularAst = regularExpr.ast();
+
+    // Should not have normalizedRootPackages for non-FLASH expressions
+    assert.ok(!regularAst.normalizedRootPackages, 'normalizedRootPackages should not be populated for non-FLASH expressions');
+
+    // Even with navigator provided, non-FLASH expressions shouldn't get normalized packages
+    const regularExprWithNav = await fumifier('$.name & " processed"', { navigator });
+    const regularAstWithNav = regularExprWithNav.ast();
+
+    assert.ok(!regularAstWithNav.normalizedRootPackages, 'normalizedRootPackages should not be populated for non-FLASH expressions even with navigator');
+  });
 });
