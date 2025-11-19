@@ -369,6 +369,46 @@ describe('Cached Parsing Feature', function() {
     );
   });
 
+  it('should generate different cache keys for different recover modes', function() {
+    const cache = getDefaultCache();
+    
+    const baseIdentity = {
+      source: 'Patient.name',
+      version: '1.2.0',
+      rootPackages: ['hl7.fhir.r4.core']
+    };
+
+    // Test different recover modes
+    const identityRecover = { ...baseIdentity, recover: true };
+    const identityNoRecover = { ...baseIdentity, recover: false };
+    
+    const keyRecover = cache._generateKey(identityRecover);
+    const keyNoRecover = cache._generateKey(identityNoRecover);
+    
+    // Keys should be different
+    assert.notStrictEqual(keyRecover, keyNoRecover, 'Cache keys should differ for different recover modes');
+    
+    // Keys should contain recover mode information
+    assert(keyRecover.includes('recover'), 'Recover=true key should contain "recover"');
+    assert(keyNoRecover.includes('normal'), 'Recover=false key should contain "normal"');
+    
+    // Verify key structure includes all identity components
+    const recoverParts = keyRecover.split('|');
+    const noRecoverParts = keyNoRecover.split('|');
+    
+    // Should have: version, source, recover_mode, rootPackages
+    assert.strictEqual(recoverParts.length, 4, 'Cache key should have 4 parts');
+    assert.strictEqual(noRecoverParts.length, 4, 'Cache key should have 4 parts');
+    
+    // Version and source should be the same
+    assert.strictEqual(recoverParts[0], noRecoverParts[0], 'Version should be same');
+    assert.strictEqual(recoverParts[1], noRecoverParts[1], 'Source should be same');
+    assert.strictEqual(recoverParts[3], noRecoverParts[3], 'Root packages should be same');
+    
+    // Only recover mode should differ
+    assert.notStrictEqual(recoverParts[2], noRecoverParts[2], 'Recover mode should differ');
+  });
+
   after(function() {
     // Clean up cache after all tests
     const cache = getDefaultCache();
