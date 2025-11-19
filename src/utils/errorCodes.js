@@ -12,6 +12,10 @@ License: See the LICENSE file included with this package for the terms that appl
 /**
      * Error codes
      *
+      * FHIR related parse warnings:
+      * ============================
+      * F0xxx    - FLASH/FUME parsing warnings
+      *
       * Always fatal (level 0):
       * =======================
       * Sxxxx    - Static errors (compile time)
@@ -172,8 +176,8 @@ const errorCodes = {
   "D3139": "The $single() function expected exactly 1 matching result.  Instead it matched 0.",
   "D3140": "Malformed URL passed to ${{{functionName}}}(): {{value}}",
   "D3141": "{{{message}}}",
+  "F0001": "Failed to extract root FHIR package context. This may hinder AST mobility. FHIR Package Explorer < v1.5.0 doesn't support this operation.",
   "F1000": "FLASH blocks are present in the expression, but no FHIR Structure Navigator was provided. Cannot process FHIR conformance.",
-  "F1001": "Resource.id (expression after 'Instance:' decleration) must evaluate to a string. Got: {{value}}",
   "F1003": "Invalid FHIR type/profile identifier after `InstanceOf:`",
   "F1004": "Duplicate `Instance:` declaration",
   "F1005": "Duplicate `InstanceOf:` declaration",

@@ -74,7 +74,14 @@ function handleRecoverableError(base, positions, recover, errors, errObj) {
  * @param {boolean} recover - If true, will continue processing and collect errors instead of throwing them.
  * @param {Array} errors - Array to collect errors if recover is true
  * @param {Object} compiledRegexCache - Cache for compiled FHIR regexes
- * @returns {Promise<Object>} Semantically enriched AST
+ * @returns {Promise<Object>} Semantically enriched AST with resolved FHIR definitions:
+ *   - resolvedTypeMeta: FHIR type metadata cache
+ *   - resolvedBaseTypeMeta: FHIR base type metadata cache
+ *   - resolvedTypeChildren: FHIR type children cache
+ *   - resolvedElementDefinitions: FHIR element definitions cache
+ *   - resolvedElementChildren: FHIR element children cache
+ *   - resolvedValueSetExpansions: ValueSet expansion cache
+ *   - normalizedRootPackages: Array of normalized root package contexts from FPE (for AST mobility)
  */
 const resolveDefinitions = async function (expr, navigator, recover, errors, compiledRegexCache) {
   if (!expr || !expr.containsFlash) return expr;
@@ -423,6 +430,24 @@ const resolveDefinitions = async function (expr, navigator, recover, errors, com
         resolvedElementChildren[key] = handleRecoverableError(baseError, [], recover, errors, e);
       }
     }));
+  }
+
+  // Extract normalized root package context for AST mobility with FHIR context
+  try {
+    const fpe = navigator.getFpe();
+    if (fpe && typeof fpe.getNormalizedRootPackages === 'function') {
+      expr.normalizedRootPackages = await fpe.getNormalizedRootPackages();
+    }
+  } catch (e) {
+    // If extraction fails, we don't want to break the entire resolution process
+    // This is for AST mobility support, not core functionality
+    if (recover) {
+      // Only log the error if we're in recovery mode - this allows error collection
+      const baseError = { code: 'F0001' };
+      handleRecoverableError(baseError, [], recover, errors, e);
+    }
+    // TODO: When logger injection is supported during parsing, report this as a warning
+    // even when not in recovery mode, instead of silently ignoring it
   }
 
   expr.resolvedTypeMeta = resolvedTypeMeta;
