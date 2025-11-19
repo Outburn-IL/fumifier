@@ -10,3 +10,6 @@ test/fsh-test-pkg/dist/fsh-generated/fsh-index.txt
 debug-logs.txt
 debug-result.json
 fumifier-*.tgz
+
+# Auto-generated version file
+src/version.js

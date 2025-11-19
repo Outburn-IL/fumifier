@@ -23,6 +23,8 @@ import fn from './utils/functions.js';
 import utils from './utils/utils.js';
 import parser from './parser.js';
 import resolveDefinitions from './utils/resolveDefinitions.js';
+import { createExpressionIdentity, AstCacheInterface } from './utils/cacheUtils.js';
+import { getDefaultCache } from './utils/moduleCache.js';
 
 // Import boolize directly since it's a simple utility function
 const { boolize } = fn;
@@ -39,9 +41,16 @@ import { createDefaultLogger, SYM, decide, push, thresholds, severityFromCode, L
  */
 
 /**
+ * @typedef AstCacheInterface
+ * @property {(identity: Object) => Promise<any>} get - Retrieve a value from the AST cache using identity object { source, version, recover, rootPackages? }
+ * @property {(identity: Object, value: any) => Promise<void>} set - Store a value in the AST cache using identity object { source, version, recover, rootPackages? }
+ */
+
+/**
  * @typedef FumifierOptions
  * @property {boolean} [recover] Attempt to recover on parse error.
  * @property {FhirStructureNavigator} [navigator] FHIR structure navigator used to resolve FLASH constructs.
+ * @property {AstCacheInterface} [astCache] Optional AST cache implementation for parsed expressions. Defaults to shared LRU cache.
  */
 
 /**
@@ -1906,22 +1915,64 @@ var fumifier = (function() {
 
     let ast;
     try {
-      ast = parser(expr, false);
+      const env = this.environment;
+      const navigator = env && env.lookup(Symbol.for('fumifier.__navigator'));
 
-      // Post-parse FLASH processing for inner $eval expressions
-      // Inherit navigator from the factory; callers of $eval do not (and must not) pass it.
-      if (ast && ast.containsFlash === true) {
-        const env = this.environment;
-        const navigator = env && env.lookup(Symbol.for('fumifier.__navigator'));
-        if (!navigator) {
-          // Mirror factory behavior for missing navigator with FLASH content
-          const err = { code: 'F1000', position: 0 };
-          err.stack = (new Error()).stack;
-          throw err; // will be wrapped as D3120 below
-        }
-        const compiledFhirRegex = env && env.lookup(Symbol.for('fumifier.__compiledFhirRegex_OBJ'));
-        const errors = []; // no recover mode for $eval; collect if needed but do not expose
-        ast = await resolveDefinitions(ast, navigator, false, errors, compiledFhirRegex);
+      // Create expression identity for caching
+      // Note: $eval always uses recover=false (no recovery mode for inner expressions)
+      const identity = createExpressionIdentity(expr, false, navigator);
+
+      // Use the same AST cache implementation as the parent fumifier instance
+      const astCacheImpl = env && env.lookup(Symbol.for('fumifier.__astCacheImpl')) || new AstCacheInterface(getDefaultCache());
+
+      // Try to get from AST cache first
+      try {
+        ast = await astCacheImpl.get(identity);
+      } catch (cacheError) {
+        // If AST cache fails, proceed without caching
+        ast = null;
+      }
+
+      if (!ast) {
+        // AST cache miss - parse with inflight deduplication
+        const cacheKey = JSON.stringify(identity);
+        ast = await astCacheImpl.getOrCreateInflight(cacheKey, async () => {
+          const parsedAst = parser(expr, false);
+          // Ensure errors array exists in AST before any caching
+          if (!parsedAst.errors) {
+            parsedAst.errors = [];
+          }
+
+          // Post-parse FLASH processing for inner $eval expressions
+          // Inherit navigator from the factory; callers of $eval do not (and must not) pass it.
+          if (parsedAst && parsedAst.containsFlash === true) {
+            if (!navigator) {
+              // Mirror factory behavior for missing navigator with FLASH content
+              const err = { code: 'F1000', position: 0 };
+              err.stack = (new Error()).stack;
+              throw err; // will be wrapped as D3120 below
+            }
+            const compiledFhirRegex = env && env.lookup(Symbol.for('fumifier.__compiledFhirRegex_OBJ'));
+            const errors = []; // no recover mode for $eval; collect if needed but do not expose
+            const resolvedAst = await resolveDefinitions(parsedAst, navigator, false, errors, compiledFhirRegex);
+
+            // Cache the resolved AST
+            try {
+              await astCacheImpl.set(identity, resolvedAst);
+            } catch (cacheError) {
+              // If AST cache fails, continue without caching
+            }
+            return resolvedAst;
+          }
+
+          // Cache the parsed AST for non-FLASH expressions
+          try {
+            await astCacheImpl.set(identity, parsedAst);
+          } catch (cacheError) {
+            // If AST cache fails, continue without caching
+          }
+          return parsedAst;
+        });
       }
     } catch(err) {
       // error parsing the expression (or resolving FLASH definitions) passed to $eval
@@ -2034,13 +2085,79 @@ var fumifier = (function() {
     var recover = options && options.recover;
     var compiledFhirRegex = {};
 
+    // Get AST cache implementation - use external AST cache if provided, otherwise use default
+    const astCacheImpl = (options && options.astCache) ? new AstCacheInterface(options.astCache) : new AstCacheInterface(getDefaultCache());
+
     try {
       if (typeof expr === 'string') {
-        // Parse string expression normally
-        ast = parser(expr, options && options.recover);
-        // Ensure errors array exists in AST
-        if (!ast.errors) {
-          ast.errors = [];
+        // Create expression identity for caching
+        const identity = createExpressionIdentity(expr, recover, navigator);
+
+        // Try to get from AST cache first
+        try {
+          ast = await astCacheImpl.get(identity);
+        } catch (cacheError) {
+          // If AST cache fails, proceed without caching
+          ast = null;
+        }
+
+        if (!ast) {
+          // AST cache miss - parse with inflight deduplication
+          const cacheKey = JSON.stringify(identity);
+          ast = await astCacheImpl.getOrCreateInflight(cacheKey, async () => {
+            const parsedAst = parser(expr, recover);
+            // Ensure errors array exists in AST before any caching
+            if (!parsedAst.errors) {
+              parsedAst.errors = [];
+            }
+
+            // Post-parse FLASH processing if needed
+            if (parsedAst && parsedAst.containsFlash === true) {
+              if (!navigator) {
+                var err = {
+                  code: 'F1000',
+                  position: 0,
+                };
+
+                if (recover) {
+                  err.type = 'error';
+                  parsedAst.errors.push(err);
+                  // Cache and return the AST with errors in recover mode
+                  try {
+                    await astCacheImpl.set(identity, parsedAst);
+                  } catch (cacheError) {
+                    // If AST cache fails, continue without caching
+                  }
+                  return parsedAst;
+                } else {
+                  err.stack = (new Error()).stack;
+                  throw err;
+                }
+              } else {
+                // Resolve FHIR definitions
+                const resolvedAst = await resolveDefinitions(parsedAst, navigator, recover, parsedAst.errors, compiledFhirRegex);
+
+                // Cache the resolved AST (pure JSON, no functions)
+                try {
+                  await astCacheImpl.set(identity, resolvedAst);
+                } catch (cacheError) {
+                  // If AST cache fails, continue without caching
+                }
+                return resolvedAst;
+              }
+            }
+
+            // Cache the parsed AST for non-FLASH expressions
+            try {
+              await astCacheImpl.set(identity, parsedAst);
+            } catch (cacheError) {
+              // If AST cache fails, continue without caching
+            }
+            return parsedAst;
+          });
+        } else {
+          // Cache hit - AST already resolved, just ensure compiledFhirRegex is fresh
+          compiledFhirRegex = {};
         }
       } else if (typeof expr === 'object' && expr !== null) {
         // Assume it's a pre-parsed AST object
@@ -2048,22 +2165,14 @@ var fumifier = (function() {
           throw new Error('Invalid AST: AST object must have a "type" property');
         }
 
-        // Use the AST object directly - no cloning needed
-        // AST mutations only happen during FLASH resolution
+        // Use the AST object directly - no mutations needed
+        // Direct AST objects likely come from cache and should not be modified
         ast = expr;
-
-        // Ensure errors array exists in AST
-        if (!ast.errors) {
-          ast.errors = [];
-        }
       } else {
         throw new Error('Expression must be either a string or an AST object');
       }
-      // post-parse FLASH processing (async)
-      // - only if a navigator was provided
-      // - only if the AST contains flash blocks
-      // - throws if has flash and no navigator
-      if (ast && ast.containsFlash === true) {
+      // For AST objects passed directly, handle FLASH processing if needed
+      if (typeof expr === 'object' && ast && ast.containsFlash === true) {
         // Check if AST is already resolved (has any of the resolved properties)
         const isAlreadyResolved = ast.resolvedTypeMeta || ast.resolvedBaseTypeMeta ||
                                 ast.resolvedTypeChildren || ast.resolvedElementDefinitions ||
@@ -2130,9 +2239,10 @@ var fumifier = (function() {
       return compiled;
     });
 
-    // Expose navigator and compiled regex cache to inner $eval() via environment lookup
+    // Expose navigator, compiled regex cache, and AST cache implementation to inner $eval() via environment lookup
     environment.bind(Symbol.for('fumifier.__navigator'), navigator);
     environment.bind(Symbol.for('fumifier.__compiledFhirRegex_OBJ'), compiledFhirRegex);
+    environment.bind(Symbol.for('fumifier.__astCacheImpl'), astCacheImpl);
 
     // bind the resolved definition collections
     environment.bind(Symbol.for('fumifier.__resolvedDefinitions'), {
