@@ -41,9 +41,16 @@ import { createDefaultLogger, SYM, decide, push, thresholds, severityFromCode, L
  */
 
 /**
+ * @typedef CacheInterface
+ * @property {(key: string) => Promise<any>} get - Retrieve a value from the cache
+ * @property {(key: string, value: any) => Promise<void>} set - Store a value in the cache
+ */
+
+/**
  * @typedef FumifierOptions
  * @property {boolean} [recover] Attempt to recover on parse error.
  * @property {FhirStructureNavigator} [navigator] FHIR structure navigator used to resolve FLASH constructs.
+ * @property {CacheInterface} [cache] Optional cache implementation for parsed expressions. Defaults to shared LRU cache.
  */
 
 /**
