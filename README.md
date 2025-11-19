@@ -113,7 +113,104 @@ const output = await compiled.evaluate(input, {
 ```
 
 ---
-## 6. FLASH DSL Overview (Very Brief)
+## 6. Browser Mode ⭐ **New** (since v1.4.0)
+Fumifier supports browser environments through a lightweight browser mode that enables basic syntactic parsing of FUME expressions with recovery mode on or off. 
+
+Evaluation capabilities are limited, but basic and stateless expressions without FHIR dependencies can be evaluated in the browser. If evaluation cannot be performed, a dedicated F1000 error will be thrown/reported (depending on recovery mode).
+
+### Installation & Import
+```js
+// ES Module import in browser
+import browserFumifier from 'fumifier/browser';
+
+// Or in HTML
+<script type="module">
+  import browserFumifier from './node_modules/fumifier/dist/browser.mjs';
+</script>
+```
+
+### Basic Usage
+```js
+// Simple expression evaluation
+const expr = await browserFumifier('1 + 2');
+const result = await expr.evaluate({}); // 3
+
+// Object transformation
+const transform = await browserFumifier('{ fullName: firstName & " " & lastName }');
+const output = await transform.evaluate({ firstName: 'John', lastName: 'Doe' });
+console.log(output); // { fullName: 'John Doe' }
+
+// Array operations
+const filter = await browserFumifier('numbers[$ > 5]');
+const filtered = await filter.evaluate({ numbers: [1, 6, 3, 8, 2, 9] });
+console.log(filtered); // [6, 8, 9]
+```
+
+### Syntax Highlighting & Error Recovery
+```js
+// Parse with error recovery for syntax highlighting
+const expr = await browserFumifier('1 +', { recover: true });
+const ast = expr.ast(); // AST structure for syntax highlighting
+const errors = expr.errors(); // Parse errors for editor feedback
+
+// FLASH syntax parsing (for syntax highlighting only)
+const flashExpr = await browserFumifier(`
+  InstanceOf: Patient
+  * name.given = "John"
+`, { recover: true });
+const flashAst = flashExpr.ast(); // Parsed structure
+const flashErrors = flashExpr.errors(); // FHIR functionality limitations
+```
+
+### Complete Browser Example
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fumifier Browser Demo</title>
+</head>
+<body>
+    <h1>FUME Expression Evaluator</h1>
+    <textarea id="expression" placeholder="Enter FUME expression">name.first & ' ' & name.last</textarea>
+    <textarea id="input" placeholder="Enter JSON input">{"name": {"first": "John", "last": "Doe"}}</textarea>
+    <button onclick="evaluate()">Evaluate</button>
+    <pre id="output"></pre>
+
+    <script type="module">
+        import browserFumifier from './node_modules/fumifier/dist/browser.mjs';
+        
+        window.evaluate = async function() {
+            try {
+                const exprText = document.getElementById('expression').value;
+                const inputText = document.getElementById('input').value;
+                
+                const expr = await browserFumifier(exprText);
+                const input = JSON.parse(inputText);
+                const result = await expr.evaluate(input);
+                
+                document.getElementById('output').textContent = JSON.stringify(result, null, 2);
+            } catch (error) {
+                document.getElementById('output').textContent = 'Error: ' + error.message;
+            }
+        };
+    </script>
+</body>
+</html>
+```
+
+### Browser Mode Limitations
+- **Basic syntax parsing only**: Can parse FLASH syntax for highlighting but won't evaluate FHIR semantic correctness. No element name/path validation, no profile lookup or loading. Any validation that requires FHIR packages to be loaded is disabled when using browser mode.
+- **Non-FHIR evaluation**: Expressions that can be fully parsed in browser mode with no errors (e.g., no syntax errors and no FHIR context required), can also be **evaluated** against inputs.
+- **Recovery mode**: Best used with `{ recover: true }` for editor/IDE integrations
+
+### Use Cases
+- **Web-based expression editors** with syntax highlighting
+- **Client-side data transformation** using a limited subset of the FUME language
+- **Initial expression validation** and AST analysis in browsers
+- **Configuration interfaces** for transformation rules
+
+---
+## 7. FLASH DSL Overview (Very Brief)
 FLASH extends JSONata‑style expressions with:
 - Flash blocks / rules (prefix `[` lowering to unary nodes) controlling grouped evaluation
 - FHIR element awareness (cardinality shaping, pattern & fixed value injection – some still on roadmap)
@@ -154,7 +251,7 @@ See `PolicyThresholds.md` for deeper guidance.
 Returns a compiled expression object.
 
 The fumifier function now accepts either:
-- `expressionText: string` – FLASH/JSONata expression to parse and compile
+- `expressionText: string` – FUME expression to parse and compile
 - `astObject: Object` – Pre-parsed AST JSON to compile directly (**AST Mobility**)
 
 `options`:
