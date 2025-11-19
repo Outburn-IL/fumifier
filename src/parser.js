@@ -1055,9 +1055,35 @@ const parser = (() => {
             return handleError(err);
           }
         }
-        // parse the function body
+        // parse the function body with assume block feature
         advance('{');
-        this.body = expression(0);
+        // Parse function body expressions with semicolon support
+        var expressions = [];
+        var firstExpr = expression(0);
+        expressions.push(firstExpr);
+
+        // Check if we have semicolons in function body - if so, assume this is a block
+        while (node.id === ';') {
+          advance(';');
+          if (node.id !== '}') {
+            expressions.push(expression(0));
+          }
+        }
+
+        // If we have multiple expressions, wrap in an implicit block
+        // If only one expression, return it directly (unwrap implicit block)
+        if (expressions.length === 1) {
+          this.body = expressions[0];
+        } else {
+          this.body = {
+            type: 'block',
+            expressions: expressions,
+            position: firstExpr.position,
+            start: firstExpr.start,
+            line: firstExpr.line,
+            isImplicitBlock: true
+          };
+        }
         advance('}');
       }
       return this;
@@ -1430,43 +1456,66 @@ const parser = (() => {
       return this;
     });
 
-    // now invoke the tokenizer and the parser and return the syntax tree
-    lexer = tokenizer(source);
-    advance();
-    // parse the tokens
-    var expr = expression(0);
-    if (node.id !== '(end)') {
-      // if the token is one of the closing braces, give the appropriate error
-      if (tokenPairs[node.value]) {
-        return handleError({
-          code: "F1100",
-          position: node.position,
-          start: node.start,
-          line: node.line,
-          token: node.value,
-          matchingOpening: tokenPairs[node.value]
-        });
-      }
-      // if the token is a semicolon, it means it wasn't inside a block expression
-      if (node.value === ';') {
-        return handleError({
-          code: "F1103",
+    /**
+     * Parse expressions with assume block support at root level
+     * @returns {Object} parsed expression or implicit block
+     */
+    var parseRootWithAssumeBlock = function() {
+      var expressions = [];
+      var firstExpr = expression(0);
+      expressions.push(firstExpr);
+
+      // Check if we have semicolons at root level - if so, assume this is a block
+      while (node.id === ';') {
+        advance(';');
+        // Handle trailing semicolons (e.g., "expr;" or "expr;;") - ignore empty expressions at end
+        if (node.id !== '(end)') {
+          var nextExpr = expression(0);
+          expressions.push(nextExpr);
+        }
+      }      // Handle remaining tokens after parsing
+      if (node.id !== '(end)') {
+        // if the token is one of the closing braces, give the appropriate error
+        if (tokenPairs[node.value]) {
+          return handleError({
+            code: "F1100",
+            position: node.position,
+            start: node.start,
+            line: node.line,
+            token: node.value,
+            matchingOpening: tokenPairs[node.value]
+          });
+        }
+        // if the token is anything else, throw the general syntax error
+        var err = {
+          code: "S0201",
           position: node.position,
           start: node.start,
           line: node.line,
           token: node.value
-        });
+        };
+        return handleError(err);
       }
-      // if the token is anything else, throw the general syntax error
-      var err = {
-        code: "S0201",
-        position: node.position,
-        start: node.start,
-        line: node.line,
-        token: node.value
-      };
-      handleError(err);
-    }
+
+      // If we have multiple expressions, wrap in an implicit block
+      // If only one expression, return it directly (unwrap implicit block)
+      if (expressions.length === 1) {
+        return expressions[0];
+      } else {
+        return {
+          type: 'block',
+          expressions: expressions,
+          position: firstExpr.position,
+          start: firstExpr.start,
+          line: firstExpr.line,
+          isImplicitBlock: true
+        };
+      }
+    };    // now invoke the tokenizer and the parser and return the syntax tree
+    lexer = tokenizer(source);
+    advance();
+    // parse the tokens with assume block feature
+    var expr = parseRootWithAssumeBlock();
 
     // process the AST
     expr = processAST(expr, recover, errors);
