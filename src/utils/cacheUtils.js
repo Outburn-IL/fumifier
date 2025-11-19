@@ -91,17 +91,25 @@ export class AstCacheInterface {
    */
   async getOrCreateInflight(key, parseFunction) {
     // Check if there's already an inflight promise for this key
-    if (this.inflightPromises.has(key)) {
-      return await this.inflightPromises.get(key);
+    const existingPromise = this.inflightPromises.get(key);
+    if (existingPromise) {
+      return await existingPromise;
     }
 
-    // Create new inflight promise
+    // Create new inflight promise, but check again after creation to handle race conditions
     const promise = parseFunction().finally(() => {
       // Clean up the inflight promise when it completes (success or failure)
       this.inflightPromises.delete(key);
     });
 
-    // Store the promise in the inflight map
+    // Atomically check and set: if another thread won the race, use their promise instead
+    const racingPromise = this.inflightPromises.get(key);
+    if (racingPromise) {
+      // Another thread won the race - use their promise and let ours complete in background
+      return await racingPromise;
+    }
+
+    // Store our promise in the inflight map
     this.inflightPromises.set(key, promise);
 
     return await promise;
