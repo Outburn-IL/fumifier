@@ -16,14 +16,19 @@ import { VERSION } from '../version.js';
 /**
  * Creates an expression identity object for cache keys
  * @param {string} source - The raw source string of the expression
- * @param {object} navigator - Optional FHIR structure navigator
+ * @param {boolean} [recover=false] - Recover flag (affects parser behavior, defaults to false)
+ * @param {object} [navigator] - Optional FHIR structure navigator
  * @returns {object} Expression identity object
  */
-export function createExpressionIdentity(source, navigator) {
+export function createExpressionIdentity(source, recover, navigator) {
   const identity = {
     source: source,
     version: VERSION
   };
+
+  // Include recover flag in cache key since it affects parser behavior
+  // Treat undefined as false (the default)
+  identity.recover = recover === true;
 
   // Extract normalized root package context if navigator is available
   if (navigator && typeof navigator.getNormalizedRootPackages === 'function') {

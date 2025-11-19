@@ -1919,7 +1919,8 @@ var fumifier = (function() {
       const navigator = env && env.lookup(Symbol.for('fumifier.__navigator'));
 
       // Create expression identity for caching
-      const identity = createExpressionIdentity(expr, navigator);
+      // Note: $eval always uses recover=false (no recovery mode for inner expressions)
+      const identity = createExpressionIdentity(expr, false, navigator);
 
       // Use the same AST cache implementation as the parent fumifier instance
       const astCacheImpl = env && env.lookup(Symbol.for('fumifier.__astCacheImpl')) || new AstCacheInterface(getDefaultCache());
@@ -2086,7 +2087,7 @@ var fumifier = (function() {
     try {
       if (typeof expr === 'string') {
         // Create expression identity for caching
-        const identity = createExpressionIdentity(expr, navigator);
+        const identity = createExpressionIdentity(expr, recover, navigator);
 
         // Try to get from AST cache first
         try {
