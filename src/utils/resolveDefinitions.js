@@ -441,6 +441,13 @@ const resolveDefinitions = async function (expr, navigator, recover, errors, com
   } catch (e) {
     // If extraction fails, we don't want to break the entire resolution process
     // This is for AST mobility support, not core functionality
+    if (recover) {
+      // Only log the error if we're in recovery mode - this allows error collection
+      const baseError = { code: 'F0001' };
+      handleRecoverableError(baseError, [], recover, errors, e);
+    }
+    // TODO: When logger injection is supported during parsing, report this as a warning
+    // even when not in recovery mode, instead of silently ignoring it
   }
 
   expr.resolvedTypeMeta = resolvedTypeMeta;
