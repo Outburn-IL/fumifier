@@ -45,11 +45,6 @@
         "code": "F1105"
     },
     {
-        "expr": "Account.Product;",
-        "bindings": {},
-        "code": "F1103"
-    },
-    {
         "expr": "{'a', 'a':1}",
         "bindings": {},
         "code": "F1104"
