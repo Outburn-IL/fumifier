@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fumifier Browser Mode Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .pass { background: #d4edda; border-color: #c3e6cb; }
+        .fail { background: #f8d7da; border-color: #f5c6cb; }
+        .pending { background: #fff3cd; border-color: #ffeaa7; }
+        .error { color: #721c24; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fumifier Browser Mode Test</h1>
+    <button onclick="runTests()">Run Tests</button>
+    <div id="results"></div>
+
+    <script type="module">
+        // Import browser mode fumifier
+        import browserFumifier from './dist/browser.mjs';
+
+        const results = document.getElementById('results');
+        let testCount = 0;
+        let passCount = 0;
+
+        function addResult(name, status, message = '', error = null) {
+            testCount++;
+            const div = document.createElement('div');
+            div.className = `test ${status}`;
+            
+            let html = `<h3>Test ${testCount}: ${name}</h3>`;
+            if (message) html += `<p>${message}</p>`;
+            if (error) html += `<div class="error">Error: ${error.message}</div>`;
+            if (error && error.stack) html += `<pre>${error.stack}</pre>`;
+            
+            div.innerHTML = html;
+            results.appendChild(div);
+            
+            if (status === 'pass') passCount++;
+        }
+
+        async function test(name, fn) {
+            try {
+                addResult(name, 'pending', 'Running...');
+                await fn();
+                results.lastChild.className = 'test pass';
+                results.lastChild.innerHTML = `<h3>Test ${testCount}: ${name}</h3><p>✓ Passed</p>`;
+                passCount++;
+            } catch (error) {
+                results.lastChild.className = 'test fail';
+                results.lastChild.innerHTML = `<h3>Test ${testCount}: ${name}</h3><div class="error">✗ Failed: ${error.message}</div>`;
+                console.error(error);
+            }
+        }
+
+        window.runTests = async function() {
+            results.innerHTML = '';
+            testCount = 0;
+            passCount = 0;
+
+            await test('Basic JSONata Expression', async () => {
+                const expr = await browserFumifier('1 + 2');
+                const result = await expr.evaluate({});
+                if (result !== 3) throw new Error(`Expected 3, got ${result}`);
+            });
+
+            await test('Object Navigation', async () => {
+                const expr = await browserFumifier('name');
+                const result = await expr.evaluate({ name: 'John', age: 30 });
+                if (result !== 'John') throw new Error(`Expected 'John', got ${result}`);
+            });
+
+            await test('Array Operations', async () => {
+                const expr = await browserFumifier('numbers[$ > 5]');
+                const input = { numbers: [1, 6, 3, 8, 2, 9] };
+                const result = await expr.evaluate(input);
+                const expected = [6, 8, 9];
+                if (JSON.stringify(result) !== JSON.stringify(expected)) {
+                    throw new Error(`Expected ${JSON.stringify(expected)}, got ${JSON.stringify(result)}`);
+                }
+            });
+
+            await test('String Concatenation', async () => {
+                const expr = await browserFumifier('firstName & " " & lastName');
+                const input = { firstName: 'John', lastName: 'Doe' };
+                const result = await expr.evaluate(input);
+                if (result !== 'John Doe') throw new Error(`Expected 'John Doe', got ${result}`);
+            });
+
+            await test('Recovery Mode for Syntax Errors', async () => {
+                const expr = await browserFumifier('1 +', { recover: true });
+                const errors = expr.errors();
+                if (errors.length === 0) throw new Error('Expected syntax errors');
+            });
+
+            await test('AST Generation', async () => {
+                const expr = await browserFumifier('name.first');
+                const ast = expr.ast();
+                if (!ast || !ast.type) throw new Error('AST should have type property');
+                if (!ast.browserMode) throw new Error('AST should be marked as browserMode');
+            });
+
+            await test('FLASH Syntax Parsing (Recovery Mode)', async () => {
+                const flashExpression = `
+InstanceOf: Patient
+* name.given = "John"
+* name.family = "Doe"`;
+                
+                const expr = await browserFumifier(flashExpression, { recover: true });
+                const ast = expr.ast();
+                const errors = expr.errors();
+                
+                // Should have parsed something for syntax highlighting
+                if (!ast || !ast.type) throw new Error('AST should have type property');
+                // Should have errors indicating FLASH processing isn't fully supported
+                if (errors.length === 0) throw new Error('Expected some processing errors for FLASH content');
+            });
+
+            await test('Variable Bindings', async () => {
+                const expr = await browserFumifier('$var1 + $var2');
+                const result = await expr.evaluate({}, { var1: 10, var2: 5 });
+                if (result !== 15) throw new Error(`Expected 15, got ${result}`);
+            });
+
+            await test('Function Registration', async () => {
+                const expr = await browserFumifier('$double(5)');
+                expr.registerFunction('double', function(x) {
+                    return x * 2;
+                });
+                const result = await expr.evaluate({});
+                if (result !== 10) throw new Error(`Expected 10, got ${result}`);
+            });
+
+            await test('Verbose Evaluation', async () => {
+                const expr = await browserFumifier('nonExistent.property');
+                const report = await expr.evaluateVerbose({});
+                
+                if (!report.hasOwnProperty('ok')) throw new Error('Report should have ok property');
+                if (!report.hasOwnProperty('result')) throw new Error('Report should have result property');
+                if (!report.hasOwnProperty('diagnostics')) throw new Error('Report should have diagnostics property');
+                if (!report.hasOwnProperty('executionId')) throw new Error('Report should have executionId property');
+            });
+
+            // Summary
+            const summary = document.createElement('div');
+            summary.className = 'test';
+            summary.style.marginTop = '20px';
+            summary.style.fontWeight = 'bold';
+            
+            if (passCount === testCount) {
+                summary.className += ' pass';
+                summary.innerHTML = `<h3>All Tests Passed! ✓</h3><p>${passCount}/${testCount} tests successful</p>`;
+            } else {
+                summary.className += ' fail';
+                summary.innerHTML = `<h3>Some Tests Failed ✗</h3><p>${passCount}/${testCount} tests successful</p>`;
+            }
+            
+            results.appendChild(summary);
+        };
+    </script>
+</body>
+</html>
