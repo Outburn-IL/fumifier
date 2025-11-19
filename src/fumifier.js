@@ -1938,6 +1938,10 @@ var fumifier = (function() {
         const cacheKey = JSON.stringify(identity);
         ast = await astCacheImpl.getOrCreateInflight(cacheKey, async () => {
           const parsedAst = parser(expr, false);
+          // Ensure errors array exists in AST before any caching
+          if (!parsedAst.errors) {
+            parsedAst.errors = [];
+          }
 
           // Post-parse FLASH processing for inner $eval expressions
           // Inherit navigator from the factory; callers of $eval do not (and must not) pass it.
@@ -2102,7 +2106,7 @@ var fumifier = (function() {
           const cacheKey = JSON.stringify(identity);
           ast = await astCacheImpl.getOrCreateInflight(cacheKey, async () => {
             const parsedAst = parser(expr, recover);
-            // Ensure errors array exists in AST
+            // Ensure errors array exists in AST before any caching
             if (!parsedAst.errors) {
               parsedAst.errors = [];
             }
@@ -2155,25 +2159,15 @@ var fumifier = (function() {
           // Cache hit - AST already resolved, just ensure compiledFhirRegex is fresh
           compiledFhirRegex = {};
         }
-
-        // Ensure errors array exists in AST
-        if (!ast.errors) {
-          ast.errors = [];
-        }
       } else if (typeof expr === 'object' && expr !== null) {
         // Assume it's a pre-parsed AST object
         if (!Object.prototype.hasOwnProperty.call(expr, 'type')) {
           throw new Error('Invalid AST: AST object must have a "type" property');
         }
 
-        // Use the AST object directly - no cloning needed
-        // AST mutations only happen during FLASH resolution
+        // Use the AST object directly - no mutations needed
+        // Direct AST objects likely come from cache and should not be modified
         ast = expr;
-
-        // Ensure errors array exists in AST
-        if (!ast.errors) {
-          ast.errors = [];
-        }
       } else {
         throw new Error('Expression must be either a string or an AST object');
       }
