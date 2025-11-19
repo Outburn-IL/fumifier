@@ -4,7 +4,7 @@ import assert from 'assert';
 import { FhirStructureNavigator } from "@outburn/structure-navigator";
 import { FhirSnapshotGenerator } from "fhir-snapshot-generator";
 import { getDefaultCache } from '../src/utils/moduleCache.js';
-import { CacheInterface } from '../src/utils/cacheUtils.js';
+import { AstCacheInterface } from '../src/utils/cacheUtils.js';
 
 describe('Cached Parsing Feature', function() {
   let navigator;
@@ -193,12 +193,12 @@ describe('Cached Parsing Feature', function() {
     };
 
     // First compilation with external cache
-    const expr1 = await fumifier(expression, { cache: externalCache });
+    const expr1 = await fumifier(expression, { astCache: externalCache });
     const testData = { customField: "test" };
     const result1 = await expr1.evaluate(testData);
 
     // Second compilation should use external cache
-    const expr2 = await fumifier(expression, { cache: externalCache });
+    const expr2 = await fumifier(expression, { astCache: externalCache });
     const result2 = await expr2.evaluate(testData);
 
     assert.equal(result1, "test external");
@@ -272,7 +272,7 @@ describe('Cached Parsing Feature', function() {
     };
 
     // Should work despite cache errors by falling back to direct parsing
-    const expr = await fumifier(expression, { cache: faultyCache });
+    const expr = await fumifier(expression, { astCache: faultyCache });
     const result = await expr.evaluate({});
 
     assert.equal(result, 3);
@@ -315,21 +315,21 @@ describe('Cached Parsing Feature', function() {
 
   it('should track inflight statistics per cache instance', async function() {
     // Create a cache interface to test inflight stats
-    const cacheImpl = new CacheInterface(getDefaultCache());
+    const astCacheImpl = new AstCacheInterface(getDefaultCache());
 
     // Get initial stats
-    const initialStats = cacheImpl.getInflightStats();
+    const initialStats = astCacheImpl.getInflightStats();
     assert.equal(initialStats.activeInflightRequests, 0);
 
     // This test is inherently racy, but we can try to catch inflight requests
     // by using a complex expression that takes longer to parse
     const complexExpression = 'field1.subfield.array[index > 0 and value.nested.deep.property = "test"].result';
 
-    // Start multiple simultaneous compilations using the same cache
+    // Start multiple simultaneous compilations using the same AST cache
     const promises = [
-      fumifier(complexExpression, { cache: cacheImpl.impl }),
-      fumifier(complexExpression, { cache: cacheImpl.impl }),
-      fumifier(complexExpression, { cache: cacheImpl.impl })
+      fumifier(complexExpression, { astCache: astCacheImpl.impl }),
+      fumifier(complexExpression, { astCache: astCacheImpl.impl }),
+      fumifier(complexExpression, { astCache: astCacheImpl.impl })
     ];
 
     // Check if we can catch any inflight requests (timing dependent)
@@ -338,7 +338,7 @@ describe('Cached Parsing Feature', function() {
     await Promise.all(promises);
 
     // After completion, should be back to 0
-    const finalStats = cacheImpl.getInflightStats();
+    const finalStats = astCacheImpl.getInflightStats();
     assert.equal(finalStats.activeInflightRequests, 0);
   });
 
