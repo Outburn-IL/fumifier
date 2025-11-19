@@ -371,7 +371,7 @@ describe('Cached Parsing Feature', function() {
 
   it('should generate different cache keys for different recover modes', function() {
     const cache = getDefaultCache();
-    
+
     const baseIdentity = {
       source: 'Patient.name',
       version: '1.2.0',
@@ -381,32 +381,82 @@ describe('Cached Parsing Feature', function() {
     // Test different recover modes
     const identityRecover = { ...baseIdentity, recover: true };
     const identityNoRecover = { ...baseIdentity, recover: false };
-    
+
     const keyRecover = cache._generateKey(identityRecover);
     const keyNoRecover = cache._generateKey(identityNoRecover);
-    
+
     // Keys should be different
     assert.notStrictEqual(keyRecover, keyNoRecover, 'Cache keys should differ for different recover modes');
-    
+
     // Keys should contain recover mode information
     assert(keyRecover.includes('recover'), 'Recover=true key should contain "recover"');
     assert(keyNoRecover.includes('normal'), 'Recover=false key should contain "normal"');
-    
+
     // Verify key structure includes all identity components
     const recoverParts = keyRecover.split('|');
     const noRecoverParts = keyNoRecover.split('|');
-    
+
     // Should have: version, source, recover_mode, rootPackages
     assert.strictEqual(recoverParts.length, 4, 'Cache key should have 4 parts');
     assert.strictEqual(noRecoverParts.length, 4, 'Cache key should have 4 parts');
-    
+
     // Version and source should be the same
     assert.strictEqual(recoverParts[0], noRecoverParts[0], 'Version should be same');
     assert.strictEqual(recoverParts[1], noRecoverParts[1], 'Source should be same');
     assert.strictEqual(recoverParts[3], noRecoverParts[3], 'Root packages should be same');
-    
+
     // Only recover mode should differ
     assert.notStrictEqual(recoverParts[2], noRecoverParts[2], 'Recover mode should differ');
+  });
+
+  it('should handle race conditions in getOrCreateInflight correctly', async function() {
+    // Create a mock cache that always misses to force inflight logic
+    const mockCache = {
+      async get() { return undefined; },
+      async set() { /* no-op */ }
+    };
+
+    const astCacheImpl = new AstCacheInterface(mockCache);
+
+    let parseCallCount = 0;
+    const mockParseFunction = () => {
+      parseCallCount++;
+      return new Promise((resolve) => {
+        // Small delay to increase chance of race condition if not handled properly
+        setTimeout(() => {
+          resolve({
+            type: 'test',
+            parsed: true,
+            callNumber: parseCallCount
+          });
+        }, 10);
+      });
+    };
+
+    // Start multiple concurrent requests with the same key
+    const testKey = 'race-condition-test-key';
+    const concurrentRequests = 5;
+
+    const promises = [];
+    for (let i = 0; i < concurrentRequests; i++) {
+      promises.push(astCacheImpl.getOrCreateInflight(testKey, mockParseFunction));
+    }
+
+    // Wait for all requests to complete
+    const results = await Promise.all(promises);
+
+    // Verify that deduplication worked - parse function should only be called once
+    assert.strictEqual(parseCallCount, 1, 'Parse function should only be called once despite concurrent requests');
+
+    // All results should be identical (same call number)
+    const allCallNumbers = results.map(r => r.callNumber);
+    const uniqueCallNumbers = [...new Set(allCallNumbers)];
+    assert.strictEqual(uniqueCallNumbers.length, 1, 'All concurrent requests should receive the same result');
+    assert.strictEqual(uniqueCallNumbers[0], 1, 'All requests should receive result from first call');
+
+    // Verify inflight map is cleaned up
+    const finalStats = astCacheImpl.getInflightStats();
+    assert.strictEqual(finalStats.activeInflightRequests, 0, 'Inflight map should be cleaned up after completion');
   });
 
   after(function() {
