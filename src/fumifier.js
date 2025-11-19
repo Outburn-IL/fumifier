@@ -2150,12 +2150,23 @@ var fumifier = (function() {
         try {
           // throw if the expression compiled with syntax errors
           if(ast.errors && ast.errors.length > 0) {
-            var err = {
-              code: 'S0500',
-              position: 0
-            };
-            populateMessage(err); // possible side-effects on `err`
-            throw err;
+            // Check if all errors are F0xxx warnings (FHIR related parse warnings)
+            const nonWarningErrors = ast.errors.filter(error => !error.code || !error.code.startsWith('F0'));
+
+            if (nonWarningErrors.length > 0) {
+              // There are non-warning errors, throw S0500 as before
+              var err = {
+                code: 'S0500',
+                position: 0
+              };
+              populateMessage(err); // possible side-effects on `err`
+              throw err;
+            } else {
+              // All errors are F0xxx warnings, log a warning with specific details and continue evaluation
+              const logger = exec_env?.lookup(SYM.logger) || environment.lookup(SYM.logger) || createDefaultLogger();
+              const warningDetails = ast.errors.map(error => `${error.code}: ${error.message}`).join('; ');
+              logger.warn(`Evaluating expression with FHIR-related parse warnings: ${warningDetails}. This may cause unpredictable side effects.`);
+            }
           }
 
           if (typeof bindings !== 'undefined') {
