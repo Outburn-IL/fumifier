@@ -246,13 +246,13 @@ import fumifier from 'fumifier';
 // Uses default shared LRU cache (128MB limit)
 const compiled = await fumifier('Patient.name.given');
 
-// Provide custom cache implementation
-const myCache = {
-  // identity is an object: { source, version, rootPackages? }
+// Provide custom AST cache implementation
+const myAstCache = {
+  // identity is an object: { source, version, recover, rootPackages? }
   async get(identity) { /* your get logic */ },
   async set(identity, value) { /* your set logic */ }
 };
-const compiled2 = await fumifier('Patient.name.given', { cache: myCache });
+const compiled2 = await fumifier('Patient.name.given', { astCache: myAstCache });
 
 // Cache identities include expression text, FHIR context, and fumifier version
 // Concurrent requests for the same expression are deduplicated automatically
