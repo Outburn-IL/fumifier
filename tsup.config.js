@@ -1,7 +1,10 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: { index: 'src/fumifier.js' },
+  entry: {
+    index: 'src/fumifier.js',
+    browser: 'src/browser.js'
+  },
   format: ['cjs', 'esm'],
   outDir: 'dist',
   sourcemap: true,
