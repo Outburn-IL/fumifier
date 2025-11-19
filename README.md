@@ -159,8 +159,8 @@ The fumifier function now accepts either:
 
 `options`:
 - `navigator?: FhirStructureNavigator` – required only if FLASH FHIR features are used.
-- `recover?: boolean` – attempt AST recovery on syntax / resolution errors, collecting them instead of throwing.
-- `verbose?: boolean` (reserved).
+- `recover?: boolean` – attempt AST recovery on parse/resolution errors, collecting them as AST.errors instead of throwing. This is the recovery mode for parsing, not evaluation.
+- `astCache?: AstCacheInterface` – optional AST cache implementation for parsed expressions. Defaults to shared LRU cache.
 
 Compiled object methods:
 - `evaluate(input, bindings?, callback?) -> Promise<any>`
@@ -254,16 +254,16 @@ const myAstCache = {
 };
 const compiled2 = await fumifier('Patient.name.given', { astCache: myAstCache });
 
-// Cache identities include expression text, FHIR context, and fumifier version
+// Cache identities include expression text, recover mode, FHIR context, and fumifier version
 // Concurrent requests for the same expression are deduplicated automatically
 ```
 
 **Key Features:**
 - **Default LRU Cache**: Shared across all fumifier instances with memory-based eviction
 - **External Cache Support**: Implement `{ get, set }` interface for Redis, database, etc.
-- **Smart Cache Identities**: Based on expression text, FHIR context, and fumifier version
+- **Smart Cache Identities**: Based on expression text, recover mode, FHIR context, and fumifier version
 - **Concurrent Deduplication**: Multiple requests for the same unparsed expression share results
-- **$eval Inheritance**: Expressions evaluated via `$eval()` inherit the parent's cache
+- **$eval Inheritance**: Expressions evaluated via `$eval()` inherit the parent's AST cache
 
 ---
 ## 15. Roadmap
@@ -290,7 +290,7 @@ Coding standards: ESLint (config in repo) – aim for zero warnings. Commit mess
 Security / PHI: Test data MUST NOT contain real patient information.
 
 ---
-## 16. Versioning & Release Process
+## 17. Versioning & Release Process
 Semantic Versioning: MAJOR.MINOR.PATCH.
 
 Suggested release workflow (GitHub + npm):
@@ -303,14 +303,14 @@ Suggested release workflow (GitHub + npm):
 Automate with GitHub Actions: matrix (Node 20, 22), run tests + coverage, publish on tag push if CI green.
 
 ---
-## 17. License & Attribution
+## 18. License & Attribution
 GNU Affero General Public License v3.0 (see `LICENSE`). Portions adapted from / inspired by JSONata (MIT). Include original JSONata notices where required.
 FHIR® is the registered trademark of HL7 and is used with permission.
 
 If you redistribute modified sources, retain attribution headers and provide a NOTICE file summarizing third‑party attributions.
 
 ---
-## 18. Acknowledgements
+## 19. Acknowledgements
 - JSONata project for foundational expression evaluation concepts
 - HL7 & FHIR community
 - Contributors & early adopters of the FUME / FLASH ecosystem
