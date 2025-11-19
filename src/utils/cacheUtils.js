@@ -105,7 +105,9 @@ export class AstCacheInterface {
     // Atomically check and set: if another thread won the race, use their promise instead
     const racingPromise = this.inflightPromises.get(key);
     if (racingPromise) {
-      // Another thread won the race - use their promise and let ours complete in background
+      // Another thread won the race - let our promise complete in background but catch errors
+      // to prevent unhandled promise rejections
+      promise.catch(() => {/* ignore background execution errors */});
       return await racingPromise;
     }
 
