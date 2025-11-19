@@ -1896,6 +1896,7 @@ var fumifier = (function() {
   /**
      * parses and evaluates the supplied expression
      * @param {string} expr - expression to evaluate
+     * @param {*} focus - optional input data to evaluate the expression against. If not provided, inherited context is used.
      * @returns {Promise<any>} - result of evaluating the expression
      */
   async function functionEval(expr, focus) {
