@@ -76,6 +76,7 @@ License: See the LICENSE file included with this package for the terms that appl
 
 import parser from './parser.js';
 import { populateMessage } from './utils/errorCodes.js';
+import tokenizer from './utils/tokenizer.js';
 
 /**
  * Parse a FUME expression into an Abstract Syntax Tree (AST)
@@ -203,47 +204,26 @@ export function tokenize(expression) {
   }
 
   try {
-    // Parse with recovery to get as much token info as possible
-    const ast = parse(expression, true);
+    const lexer = tokenizer(expression);
     const tokens = [];
 
-    /**
-     * Extract token information from the AST by traversing it
-     * @param {Object} node - AST node to process
-     */
-    const extractTokens = function(node) {
-      if (!node || typeof node !== 'object') return;
+    // Get all tokens from the tokenizer directly
+    let token = lexer.next();
+    while (token !== null) {
+      // Convert position (end) to end for consistency
+      tokens.push({
+        type: token.type,
+        value: token.value,
+        start: token.start,
+        end: token.position,
+        line: token.line || 1
+      });
+      token = lexer.next();
+    }
 
-      if (node.type && node.position !== undefined && node.start !== undefined) {
-        tokens.push({
-          type: node.type,
-          value: node.value,
-          start: node.start,
-          end: node.position,
-          line: node.line || 1
-        });
-      }
-
-      // Recursively process child nodes
-      for (const key in node) {
-        if (key === 'lhs' || key === 'rhs' || key === 'expression' ||
-            key === 'expressions' || key === 'arguments' || key === 'procedure' ||
-            key === 'condition' || key === 'then' || key === 'else' ||
-            key === 'path' || key === 'steps' || key === 'instanceExpr') {
-          const child = node[key];
-          if (Array.isArray(child)) {
-            child.forEach(extractTokens);
-          } else {
-            extractTokens(child);
-          }
-        }
-      }
-    };    extractTokens(ast);
-
-    // Sort tokens by start position
-    return tokens.sort((a, b) => a.start - b.start);
+    return tokens;
   } catch (error) {
-    // Return empty array on parse errors
+    // Return empty array on tokenization errors
     return [];
   }
 }
