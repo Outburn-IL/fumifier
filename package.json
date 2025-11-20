@@ -26,6 +26,7 @@
   "bugs": "https://github.com/Outburn-IL/fumifier/issues",
   "homepage": "https://github.com/Outburn-IL/fumifier#readme",
   "scripts": {
+    "browser-demo": "npm run build && node scripts/start-demo-server.js",
     "build": "npm run clean && npm run generate-version && tsup",
     "generate-version": "node scripts/generate-version.js",
     "clean": "rimraf dist",
