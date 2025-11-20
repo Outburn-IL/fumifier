@@ -12,5 +12,5 @@
     "strict": false,
     "baseUrl": "."
   },
-  "files": ["src/fumifier.js"]
+  "files": ["src/fumifier.js", "src/browser.js"]
 }

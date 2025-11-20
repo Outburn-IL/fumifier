@@ -1,6 +1,6 @@
 {
   "name": "fumifier",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Fumifier is the core FLASH DSL engine inside FUME - It parses, compiles and executes FHIR related transformation logic expressed with FUME's specialized syntax (FLASH) and applies it to JSON data structures.",
   "author": "Outburn Ltd.",
   "main": "./dist/index.cjs",
@@ -12,6 +12,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "import": "./dist/browser.mjs",
+      "require": "./dist/browser.cjs"
     }
   },
   "repository": {
@@ -21,11 +26,12 @@
   "bugs": "https://github.com/Outburn-IL/fumifier/issues",
   "homepage": "https://github.com/Outburn-IL/fumifier#readme",
   "scripts": {
+    "browser-demo": "npm run build && node scripts/start-demo-server.js",
     "build": "npm run clean && npm run generate-version && tsup",
     "generate-version": "node scripts/generate-version.js",
     "clean": "rimraf dist",
     "postbuild": "npm run build:types",
-    "build:types": "tsc -p tsconfig.types.json && node -e \"const fs=require('fs');const path=require('path');const root='dist';const ensureIndex=()=>{const cands=['dist/types/index.d.ts','dist/fumifier.d.ts','dist/src/fumifier.d.ts'];for(const c of cands){if(fs.existsSync(c)){const out=path.join(root,'index.d.ts');if(c!==out){fs.mkdirSync(root,{recursive:true});fs.renameSync(c,out);}return out;}}return path.join(root,'index.d.ts');};const keep=ensureIndex();function walk(dir){for(const e of fs.readdirSync(dir)){const p=path.join(dir,e);const st=fs.statSync(p);if(st.isDirectory()){walk(p);try{if(fs.readdirSync(p).length===0)fs.rmdirSync(p);}catch(_){}}else if(p.endsWith('.d.ts')&&p!==keep){fs.unlinkSync(p);}}}walk(root);\"",
+    "build:types": "tsc -p tsconfig.types.json && node scripts/build-types.js",
     "debug": "node --inspect-brk test/debug.js",
     "debug:detached": "node test/debug.js",
     "debug:attach": "node --inspect test/debug.js",
@@ -96,6 +102,7 @@
     "mocha-lcov-reporter": "^1.3.0",
     "node-fetch": "^3.3.2",
     "rimraf": "^6.1.2",
+    "serve": "^14.2.5",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3"
   },

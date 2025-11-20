@@ -9,7 +9,7 @@ See NOTICE and LICENSES/MIT-JSONata.txt for details.
 License: See the LICENSE file included with this package for the terms that apply to this distribution.
 */
 
-import utils from './utils.js';
+import isFunction from './isFunction.js';
 
 const signature = (() => {
 
@@ -159,7 +159,7 @@ const signature = (() => {
     var regex = new RegExp(regexStr);
     var getSymbol = function (value) {
       var symbol;
-      if (utils.isFunction(value)) {
+      if (isFunction(value)) {
         symbol = 'f';
       } else {
         var type = typeof value;

@@ -209,7 +209,7 @@ const errorCodes = {
   "F1100": "This closing {{token}} is not matched by an opening {{matchingOpening}}",
   "F1101": "Missing expression after {{token}}. Objects must contain only key-value pairs",
   "F1102": "Looks like you have an extra {{token}} at the beginning of the object.",
-  "F1103": "Semicolon \";\" cannot be used here. Semicolons are used to separate top-level expressions or sub-expressions inside parenthesis blocks and function definitions.",
+  "F1103": "Semicolon \";\" cannot be used here. Semicolons are used to separate sub-expressions in top-level mappings, parenthesis blocks and function definitions.",
   "F1104": "This key is not followed by a \":\" and is missing a value. Objects must contain only key-value pairs",
   "F1105": "Looks like you have an extra {{token}} at the end of the object.",
   "F1106": "Looks like a comma \",\" is missing here, to separate the values in the array.",

@@ -40,6 +40,7 @@ Fumifier compiles a FLASH expression string to an executable object, then evalua
 ---
 ## 2. Feature Highlights
 - Modern ES Module implementation (Node ≥ 20)
+- **Browser Entry Point** 🌐 **New in v1.4.0** – lightweight parsing-only module for browsers (~103KB vs ~341KB)
 - **AST Mobility** ⭐ **New in v1.0.0** – serialize/deserialize compiled expressions as JSON
 - Async evaluation pipeline with selective short‑circuiting
 - FLASH blocks & rules lowered into native evaluator stages
@@ -67,7 +68,34 @@ Not ideal if you only need simple field renaming (a static template may suffice)
 ```bash
 npm install fumifier
 ```
-(Verify name availability; if taken, consider a scoped package like `@fume-dsl/fumifier`.)
+
+### Browser Entry Point 🌐 **New in v1.4.0**
+
+For browser environments or when you only need parsing capabilities without evaluation:
+
+```javascript
+// ES6 modules
+import { parse, validate, tokenize } from 'fumifier/browser';
+
+// Parse expressions to AST
+const ast = parse('name.first & " " & name.family');
+
+// Validate syntax
+const result = validate('name.first &');
+console.log(result.isValid, result.errors);
+
+// Extract tokens for syntax highlighting  
+const tokens = tokenize('$patient.name[0].given');
+```
+
+The browser entry point is **~103KB** (vs ~341KB for the full package) and includes:
+- ✅ Syntax parsing & AST generation
+- ✅ Real-time validation & error recovery
+- ✅ Tokenization for syntax highlighting
+- ✅ Basic FLASH syntax recognition
+- ❌ No expression evaluation or FHIR navigation
+
+See [BROWSER.md](./BROWSER.md) for complete documentation.
 
 Node requirement: `>= 20` (see `package.json` engines field).
 
@@ -265,15 +293,6 @@ const compiled2 = await fumifier('Patient.name.given', { astCache: myAstCache })
 - **Concurrent Deduplication**: Multiple requests for the same unparsed expression share results
 - **$eval Inheritance**: Expressions evaluated via `$eval()` inherit the parent's AST cache
 
----
-## 15. Roadmap
-Tracking in `TODO.md`. Near‑term priorities:
-- Date / DateTime canonicalization & strict validation
-- Fixed value / pattern injection
-- Required binding validation & system/unit injections
-- Reference function `$reference()` shape validation
-- Smarter cardinality enforcement & primitive conversions
-- Expanded verbose diagnostics normalization
 
 ---
 ## 16. Contributing
@@ -289,18 +308,6 @@ Coding standards: ESLint (config in repo) – aim for zero warnings. Commit mess
 
 Security / PHI: Test data MUST NOT contain real patient information.
 
----
-## 17. Versioning & Release Process
-Semantic Versioning: MAJOR.MINOR.PATCH.
-
-Suggested release workflow (GitHub + npm):
-- Ensure `README`, `CHANGELOG` (add one), and `LICENSE` updated
-- `npm run test` & `npm run check-coverage` must pass
-- Update `package.json` version
-- `git tag vX.Y.Z && git push --tags`
-- `npm publish --access public`
-
-Automate with GitHub Actions: matrix (Node 20, 22), run tests + coverage, publish on tag push if CI green.
 
 ---
 ## 18. License & Attribution

@@ -10,6 +10,7 @@ License: See the LICENSE file included with this package for the terms that appl
 */
 
 import { randomUUID, createHash } from 'crypto';
+import isFunction from './isFunction.js';
 
 const utils = (() => {
 
@@ -82,14 +83,7 @@ const utils = (() => {
     return value.sequence === true && Array.isArray(value);
   }
 
-  /**
-     *
-     * @param {Object} arg - expression to test
-     * @returns {boolean} - true if it is a function (lambda or built-in)
-     */
-  function isFunction(arg) {
-    return ((arg && (arg._fumifier_function === true || arg._fumifier_lambda === true)) || typeof arg === 'function');
-  }
+
 
   /**
      * Returns the arity (number of arguments) of the function

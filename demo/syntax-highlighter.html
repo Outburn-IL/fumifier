@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FUME Expression Syntax Highlighter</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .content {
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .input-section, .output-section {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .section-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .editor-container {
+            position: relative;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        #expression-input {
+            width: 100%;
+            height: 200px;
+            padding: 12px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            border: none;
+            outline: none;
+            resize: vertical;
+            background: transparent;
+            z-index: 2;
+            position: relative;
+            color: transparent;
+            caret-color: #333;
+        }
+
+        .syntax-highlight {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            padding: 12px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            pointer-events: none;
+            z-index: 1;
+            background: white;
+            overflow: hidden;
+        }
+
+        .output {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 15px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .examples {
+            margin-top: 20px;
+        }
+
+        .example {
+            display: inline-block;
+            background: #e3f2fd;
+            border: 1px solid #2196f3;
+            border-radius: 4px;
+            padding: 5px 10px;
+            margin: 5px;
+            cursor: pointer;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .example:hover {
+            background: #2196f3;
+            color: white;
+        }
+
+        .status {
+            margin-top: 10px;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status.valid {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.invalid {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        /* Syntax highlighting styles */
+        .token-name { color: #0066cc; font-weight: 500; }
+        .token-string { color: #008000; }
+        .token-number { color: #ff6600; }
+        .token-operator { color: #cc0000; font-weight: bold; }
+        .token-function { color: #6600cc; font-weight: 500; }
+        .token-variable { color: #cc6600; font-style: italic; }
+        .token-keyword { color: #0000cc; font-weight: bold; }
+        .token-punctuation { color: #666666; }
+        .token-error { background-color: #ffebee; color: #c62828; text-decoration: underline; }
+
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎨 Fumifier Syntax Highlighter</h1>
+            <p>Interactive FUME expression syntax highlighting powered by Fumifier tokenizer</p>
+        </div>
+        
+        <div class="content">
+            <div class="input-section">
+                <div class="section-title">📝 FUME Expression</div>
+                <div class="editor-container">
+                    <textarea id="expression-input" placeholder="Enter your FUME expression here...">name.first & " " & name.family</textarea>
+                    <div class="syntax-highlight" id="syntax-highlight"></div>
+                </div>
+                
+                <div class="examples">
+                    <div class="section-title">💡 Try These Examples:</div>
+                    <div class="example" data-expression='name.first & " " & name.family'>String Concatenation</div>
+                    <div class="example" data-expression='{"one": 1, "two": 2}.two'>Object Constructor</div>
+                    <div class="example" data-expression='[{"field": 15},{"Price": 50}].(Price ?? "No Price")'>Coalescing Operator</div>
+                    <div class="example" data-expression='InstanceOf: Patient
+* name.text = "John Doe"
+* birthDate = "1990-01-01"'>FLASH Instance</div>
+                    <div class="example" data-expression='$fullName := firstName & " " & lastName;
+$fullName'>Variable Assignment</div>
+                    <div class="example" data-expression='$eval("name.first")'>Function Call</div>
+                </div>
+
+                <div id="validation-status"></div>
+            </div>
+            
+            <div class="output-section">
+                <div class="section-title">🔍 Token Analysis</div>
+                <div class="output" id="token-output">Tokens will appear here when you type an expression...</div>
+                
+                <div class="section-title" style="margin-top: 20px;">🌳 AST Structure</div>
+                <div class="output" id="ast-output">AST will appear here when you type an expression...</div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import Fumifier browser module
+        import { parse, validate, tokenize } from '../dist/browser.mjs';
+
+        const inputElement = document.getElementById('expression-input');
+        const highlightElement = document.getElementById('syntax-highlight');
+        const tokenOutputElement = document.getElementById('token-output');
+        const astOutputElement = document.getElementById('ast-output');
+        const statusElement = document.getElementById('validation-status');
+
+        // Token type to CSS class mapping
+        const tokenStyleMap = {
+            'name': 'token-name',
+            'string': 'token-string', 
+            'number': 'token-number',
+            'operator': 'token-operator',
+            'function': 'token-function',
+            'variable': 'token-variable',
+            'keyword': 'token-keyword',
+            'punctuation': 'token-punctuation',
+            'literal': 'token-string',
+            'regex': 'token-string',
+            'error': 'token-error',
+            'flash': 'token-keyword',
+            // FLASH-specific tokens
+            'instanceof': 'token-keyword',
+            'blockindent': 'token-punctuation',
+            'indent': 'token-punctuation'
+        };
+
+        function highlightSyntax(expression) {
+            try {
+                const tokens = tokenize(expression);
+                let highlightedText = '';
+                let lastEnd = 0;
+
+                tokens.forEach(token => {
+                    // Ensure token has valid start/end positions
+                    const tokenStart = token.start || 0;
+                    const tokenEnd = token.end || tokenStart;
+                    
+                    // Add any text between tokens
+                    if (tokenStart > lastEnd) {
+                        highlightedText += expression.slice(lastEnd, tokenStart);
+                    }
+
+                    // Add the highlighted token
+                    const tokenClass = tokenStyleMap[token.type] || 'token-default';
+                    const tokenText = expression.slice(tokenStart, tokenEnd);
+                    highlightedText += `<span class="${tokenClass}">${escapeHtml(tokenText)}</span>`;
+
+                    lastEnd = tokenEnd;
+                });
+
+                // Add any remaining text
+                if (lastEnd < expression.length) {
+                    highlightedText += expression.slice(lastEnd);
+                }
+
+                return highlightedText;
+            } catch (error) {
+                console.error('Tokenization error:', error);
+                return escapeHtml(expression);
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function updateAnalysis() {
+            const expression = inputElement.value;
+
+            // Update syntax highlighting
+            const highlighted = highlightSyntax(expression);
+            highlightElement.innerHTML = highlighted;
+
+            // Update token analysis
+            try {
+                const tokens = tokenize(expression);
+                const tokenInfo = tokens.map(token => {
+                    const type = String(token.type || 'unknown').padEnd(12);
+                    const value = String(token.value || '').padEnd(20);
+                    const position = `${token.start || 0}-${token.end || 0}`;
+                    return `${type} | ${value} | ${position}`;
+                }).join('\n');
+                
+                tokenOutputElement.textContent = tokens.length > 0 
+                    ? `Type         | Value                | Position\n${'─'.repeat(50)}\n${tokenInfo}`
+                    : 'No tokens found';
+            } catch (error) {
+                console.error('Token analysis error:', error);
+                tokenOutputElement.textContent = `Tokenization error: ${error.message}`;
+            }
+
+            // Update AST analysis and validation
+            try {
+                const validation = validate(expression);
+                
+                if (validation.isValid) {
+                    statusElement.className = 'status valid';
+                    statusElement.textContent = '✅ Valid FUME expression';
+                    
+                    try {
+                        const ast = parse(expression);
+                        astOutputElement.textContent = JSON.stringify(ast, null, 2);
+                    } catch (parseError) {
+                        astOutputElement.textContent = `Parse error: ${parseError.message}`;
+                    }
+                } else {
+                    statusElement.className = 'status invalid';
+                    const errorCount = validation.errors.length;
+                    statusElement.textContent = `❌ ${errorCount} validation error${errorCount > 1 ? 's' : ''}`;
+                    
+                    const errorDetails = validation.errors.map(err => 
+                        `Error ${err.code}: ${err.message} (line ${err.line || 'unknown'}, col ${err.column || err.position || 'unknown'})`
+                    ).join('\n');
+                    
+                    astOutputElement.textContent = `Validation Errors:\n${errorDetails}`;
+                }
+            } catch (error) {
+                statusElement.className = 'status invalid';
+                statusElement.textContent = '❌ Validation failed';
+                astOutputElement.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        // Sync scroll between input and highlight
+        function syncScroll() {
+            highlightElement.scrollTop = inputElement.scrollTop;
+            highlightElement.scrollLeft = inputElement.scrollLeft;
+        }
+
+        // Event listeners
+        inputElement.addEventListener('input', updateAnalysis);
+        inputElement.addEventListener('scroll', syncScroll);
+
+        // Handle example clicks
+        document.querySelectorAll('.example').forEach(example => {
+            example.addEventListener('click', () => {
+                const expression = example.getAttribute('data-expression');
+                inputElement.value = expression;
+                updateAnalysis();
+                inputElement.focus();
+            });
+        });
+
+        // Initial analysis
+        updateAnalysis();
+        
+        // Load a FUME example by default
+        inputElement.value = 'name.first & " " & name.family';
+        updateAnalysis();
+
+        // Handle resize to keep highlight in sync
+        new ResizeObserver(() => {
+            syncScroll();
+        }).observe(inputElement);
+    </script>
+</body>
+</html>
