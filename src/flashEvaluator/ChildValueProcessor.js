@@ -17,6 +17,14 @@ import PrimitiveValidator from './PrimitiveValidator.js';
 // Import utility functions directly since they are simple utilities
 const { initCap } = fn;
 
+// Whitelist of decorative elements that can be safely injected if they have fixed values, even if they are optional.
+// These elements cannot change semantic meaning, only add human-readable information to their sibling properties.
+const DECORATIVE_ELEMENTS = new Set([
+  'Coding.display',
+  'CodeableConcept.text',
+  'Quantity.unit'
+]);
+
 /**
  * Handles child value processing within flash evaluation
  */
@@ -114,12 +122,24 @@ class ChildValueProcessor {
       }
     }
 
-    // at this point, if we have no collected values for this element but it is mandatory,
+    // at this point, if we have no collected values for this element but it is mandatory or decorative,
     // we will try to evaluate it as a virtual rule.
     if (values.length === 0) {
-      if (child.min === 0 || child.type.length > 1) return { values }; // skip if not mandatory, or if polymorphic
+      // skipping polymorphic elements, they cannot have actual values without having a specific type
+      if (child.type.length > 1) return { values };
 
-      // try to evaluate the child as a virtual rule
+      if (child.min === 0) {
+        // not mandatory.
+        // check if it's decorative by looking up its base path in the whitelist
+        const isDecorative = child.base?.path && DECORATIVE_ELEMENTS.has(child.base.path);
+
+        // skip if not decorative
+        if (!isDecorative) return { values };
+      }
+
+      // we are left with mandatory or decorative elements.
+      // evaluating them as virtual rules may actually produce a value.
+
       try {
         const autoValue = await this.evaluate({
           type: 'unary',
