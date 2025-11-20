@@ -31,7 +31,7 @@
     "generate-version": "node scripts/generate-version.js",
     "clean": "rimraf dist",
     "postbuild": "npm run build:types",
-    "build:types": "tsc -p tsconfig.types.json && node -e \"const fs=require('fs');const path=require('path');const root='dist';const ensureIndex=()=>{const cands=['dist/types/index.d.ts','dist/fumifier.d.ts','dist/src/fumifier.d.ts'];for(const c of cands){if(fs.existsSync(c)){const out=path.join(root,'index.d.ts');if(c!==out){fs.mkdirSync(root,{recursive:true});fs.renameSync(c,out);}return out;}}return path.join(root,'index.d.ts');};const ensureBrowser=()=>{const cands=['dist/types/browser.d.ts','dist/browser.d.ts','dist/src/browser.d.ts'];for(const c of cands){if(fs.existsSync(c)){const out=path.join(root,'browser.d.ts');if(c!==out){fs.mkdirSync(root,{recursive:true});fs.renameSync(c,out);}return out;}}};const keep=ensureIndex();ensureBrowser();function walk(dir){for(const e of fs.readdirSync(dir)){const p=path.join(dir,e);const st=fs.statSync(p);if(st.isDirectory()){walk(p);try{if(fs.readdirSync(p).length===0)fs.rmdirSync(p);}catch(_){}}else if(p.endsWith('.d.ts')&&p!==keep&&!p.endsWith('browser.d.ts')){fs.unlinkSync(p);}}}walk(root);\"",
+    "build:types": "tsc -p tsconfig.types.json && node scripts/build-types.js",
     "debug": "node --inspect-brk test/debug.js",
     "debug:detached": "node test/debug.js",
     "debug:attach": "node --inspect test/debug.js",
