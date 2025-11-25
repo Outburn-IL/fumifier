@@ -13,6 +13,7 @@ License: See the LICENSE file included with this package for the terms that appl
 import fn from '../utils/functions.js';
 import { createFhirPrimitive } from './FhirPrimitive.js';
 import PrimitiveValidator from './PrimitiveValidator.js';
+import validateMandatoryChildren from '../utils/validateMandatoryChildren.js';
 
 // Import utility functions directly since they are simple utilities
 const { initCap } = fn;
@@ -24,6 +25,9 @@ const DECORATIVE_ELEMENTS = new Set([
   'CodeableConcept.text',
   'Quantity.unit'
 ]);
+
+// Symbol for mandatory children tracking
+const SYM_MANDATORIES = Symbol.for('fumifier.__mandatoryChildren');
 
 /**
  * Handles child value processing within flash evaluation
@@ -115,8 +119,13 @@ class ChildValueProcessor {
         }
       } else {
         // complex type or primitive type - merge all objects into one
+        const mandatories = valuesForName[0]?.[SYM_MANDATORIES];
         const mergedValue = fn.merge(valuesForName);
         if (Object.keys(mergedValue).length > 0) {
+          // re-attach mandatory children info
+          if (typeof mandatories !== 'undefined') {
+            mergedValue[SYM_MANDATORIES] = mandatories;
+          }
           values.push({ name, kind: kindForName, value: [mergedValue] });
         }
       }
@@ -154,16 +163,36 @@ class ChildValueProcessor {
           line: expr.line
         }, undefined, this.environment);
 
-        // if the autoValue is not undefined, we add it to the values array
-        if (typeof autoValue !== 'undefined') {
+        // if the autoValue is not empty, we add it to the values array
+        if (typeof autoValue !== 'undefined' && (typeof autoValue.value !== 'object' || Object.keys(autoValue.value).length > 0)) {
           values.push({ name: autoValue.key, kind: autoValue.kind, value: [autoValue.value] });
         }
       } catch (error) {
+        // Re-throw validation errors (F5xxx) - only catch auto-generation failures
+        if (error.code && error.code.startsWith('F5')) {
+          throw error;
+        }
         // If the element failed to auto generate, we ignore the error and just don't add anything to the values array
       }
     }
 
-    return { values };
+    // if there is __mandatories on the first value, we will keep that list for checking
+    const mandatories = values[0]?.value[0]?.[Symbol.for('fumifier.__mandatoryChildren')];
+    // now if mandatories exist, we will iterate on each value in each values entry
+    // and check for satisfaction using the shared validation utility
+    if (mandatories) {
+      for (const { value: valueArray } of values) {
+        for (const testedValue of valueArray) {
+          // only objects can have mandatory elements
+          if (typeof testedValue !== 'object' || testedValue === null) {
+            continue;
+          }
+
+          // Use shared validation utility with custom parent path from child
+          validateMandatoryChildren(testedValue, mandatories, expr, this.environment, child.__flashPathRefKey);
+        }
+      }
+    }    return { values };
   }
 
   /**

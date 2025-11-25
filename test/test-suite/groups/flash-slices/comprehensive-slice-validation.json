@@ -50,7 +50,7 @@
     "skip": false,
     "description": "Optional slice as empty rule with mandatory slice with missing display  -should FAIL",
     "data": null,
-    "code": "F5140",
+    "code": "F5130",
     "bindings": {
       "validationLevel": 15
     },
@@ -62,7 +62,7 @@
     "description": "Optional slice as empty rule with mandatory slice with missing display  -should FAIL but inhibited",
     "bindings": {
       "logLevel": 13,
-      "validationLevel": 14
+      "validationLevel": 13
     },
     "data": null,
     "result": {
@@ -75,6 +75,10 @@
       "status": "unknown",
       "code": {
         "coding": [
+          {
+            "system": "http://example.com/optional-or-mandatory",
+            "code": "MANDATORY"
+          },
           {
             "system": "http://example.com/optional-or-mandatory",
             "code": "OPTIONAL"

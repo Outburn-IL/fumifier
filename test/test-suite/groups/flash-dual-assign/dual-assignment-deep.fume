@@ -1,0 +1,7 @@
+InstanceOf: dual-assignment-test-profile
+// Focus on deep dual assignment to contact name
+// Multiple assignments to same contact's name should merge
+// due to contact.name max=1 constraint
+* contact
+  * name.family = 'ContactFamily'
+  * name.given = 'ContactGiven'

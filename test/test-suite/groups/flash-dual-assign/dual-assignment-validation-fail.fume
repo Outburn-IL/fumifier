@@ -1,0 +1,5 @@
+InstanceOf: dual-assignment-test-profile
+// This should fail because TestSlice.value is required (min=1)
+// but we only provide the use
+* identifier[TestSlice].use = 'official'
+// Missing required value field

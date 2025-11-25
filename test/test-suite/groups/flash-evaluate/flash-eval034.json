@@ -1,0 +1,19 @@
+{
+  "skip": false,
+  "description": "triple nested children - used to fail in old FUME",
+  "data": {},
+  "bindings": {},
+  "result": {
+    "resourceType": "Patient",
+    "maritalStatus": {
+      "coding": [
+        {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-MaritalStatus",
+          "code": "M",
+          "display": "Married"
+        }
+      ]
+    }
+  },
+  "expr-file": "flash-eval034.fume"
+}

@@ -178,8 +178,8 @@ describe("Fumifier Test Suite", () => {
                 return expect(result).to.eventually.deep.equal(undefined);
 
               } else if ("result" in testcase) {
-                const result = expr.evaluate(dataset, testcase.bindings);
-                return expect(result).to.eventually.deep.equal(testcase.result);
+                const result = await expr.evaluate(dataset, testcase.bindings);
+                return expect(JSON.parse(JSON.stringify(result))).to.deep.equal(testcase.result);
 
               } else if ("error" in testcase) {
                 return expect(expr.evaluate(dataset, testcase.bindings))

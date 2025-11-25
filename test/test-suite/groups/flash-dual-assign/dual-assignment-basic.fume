@@ -1,0 +1,9 @@
+InstanceOf: dual-assignment-test-profile
+* name
+  * given = 'John'
+  * family = 'Doe'
+// should create a single entry in identifier array
+// should include system, value, and use
+// since the TestSlice is max=1
+* identifier[TestSlice].value = '12345'
+* identifier[TestSlice].use = 'official'

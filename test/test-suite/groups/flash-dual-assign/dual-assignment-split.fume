@@ -1,0 +1,4 @@
+InstanceOf: dual-assignment-test-profile
+// should create two name entries since name is max=*
+* name.given = 'Test'
+* name.family = 'Split'

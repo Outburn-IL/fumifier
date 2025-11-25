@@ -1,0 +1,116 @@
+[
+  {
+    "description": "Basic dual assignment to sliced identifier - should create single object",
+    "data": null,
+    "result": {
+      "resourceType": "Patient",
+      "meta": {
+        "profile": [
+          "http://test.fumifier.fume.health/fhir/StructureDefinition/dual-assignment-test-profile"
+        ]
+      },
+      "name": [
+        {
+          "family": "Doe",
+          "given": ["John"]
+        }
+      ],
+      "identifier": [
+        {
+          "system": "http://example.org/dual-assignment-test",
+          "value": "12345",
+          "use": "official"
+        }
+      ]
+    },
+    "notes": "Multiple assignments to the same sliced identifier should merge into single object due to max=1 constraint",
+    "expr-file": "dual-assignment-basic.fume"
+  },
+  {
+    "description": "Nested vs separate dual assignment - identical results",
+    "data": null,
+    "result": {
+      "resourceType": "Patient",
+      "meta": {
+        "profile": [
+          "http://test.fumifier.fume.health/fhir/StructureDefinition/dual-assignment-test-profile"
+        ]
+      },
+      "identifier": [
+        {
+          "system": "http://example.org/dual-assignment-test",
+          "value": "67890",
+          "use": "official"
+        }
+      ],
+      "name": [
+        {
+          "family": "Smith",
+          "given": ["Jane"]
+        }
+      ],
+      "contact": [
+        {
+          "name": {
+            "family": "Emergency",
+            "given": ["Person"]
+          }
+        }
+      ]
+    },
+    "notes": "Nested assignment syntax should produce same result as separate assignments",
+    "expr-file": "dual-assignment-nested.fume"
+  },
+  {
+    "description": "Deep dual assignment to contact name - should create single contact",
+    "data": null,
+    "result": {
+      "resourceType": "Patient",
+      "meta": {
+        "profile": [
+          "http://test.fumifier.fume.health/fhir/StructureDefinition/dual-assignment-test-profile"
+        ]
+      },
+      "contact": [
+        {
+          "name": {
+            "family": "ContactFamily",
+            "given": ["ContactGiven"]
+          }
+        }
+      ]
+    },
+    "notes": "Multiple assignments to same contact's name should merge due to contact max=1 constraint",
+    "expr-file": "dual-assignment-deep.fume"
+  },
+  {
+    "description": "Split assignment patterns - when max=* separate objects should be created",
+    "data": null,
+    "result": {
+      "resourceType": "Patient",
+      "meta": {
+        "profile": [
+          "http://test.fumifier.fume.health/fhir/StructureDefinition/dual-assignment-test-profile"
+        ]
+      },
+      "name": [
+        {
+          "given": ["Test"]
+        },
+        {
+          "family": "Split"
+        }
+      ]
+    },
+    "notes": "Complex scenario with both sliced identifier and contact assignments",
+    "expr-file": "dual-assignment-split.fume"
+  },
+  {
+    "skip": false,
+    "description": "Validation failure - missing required value in sliced identifier",
+    "data": null,
+    "code": "F5130",
+    "notes": "Should fail: TestSlice identifier requires value (min=1) but only system is provided",
+    "expr-file": "dual-assignment-validation-fail.fume"
+  }
+]

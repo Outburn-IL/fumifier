@@ -20,6 +20,7 @@ import { createFhirPrimitive, isFhirPrimitive } from './flashEvaluator/FhirPrimi
 import { createFlashRuleResult, createFlashRuleResultArray } from './flashEvaluator/FlashRuleResult.js';
 import createPolicy from './utils/policy.js';
 import PrimitiveValidator from './flashEvaluator/PrimitiveValidator.js';
+import validateMandatoryChildren from './utils/validateMandatoryChildren.js';
 
 /**
  * Flash evaluation module that contains all FLASH-specific evaluation logic
@@ -689,58 +690,27 @@ function createFlashEvaluator(evaluate) {
   }
 
   /**
-   * Validate mandatory children in flash result
+   * Attach mandatory children list to flash result
    * @param {Object} result - Result object
    * @param {Array} children - Children definitions
    * @param {Object} expr - Original expression
    * @param {Object} environment - Environment with policy/diagnostics
    */
-  function validateMandatoryChildren(result, children, expr, environment) {
+  function attachMandatoryChildren(result, children, expr, environment) {
     const policy = createPolicy(environment);
     // Inhibition: skip this validation entirely when F5130 is outside validation band
     if (!policy.shouldValidate('F5130')) {
       return; // do not perform mandatory-children checks
     }
-    // Ensure mandatory children exist
+    const mandatories = [];
+    // collect list of mandatory children
     for (const child of children) {
       // skip non-mandatory children
       if (child.min === 0) continue;
-
-      const names = child.__name;
-      const satisfied = names.some(name =>
-        Object.prototype.hasOwnProperty.call(result, name) && // element key exists
-        result[name] !== undefined && // element value is not undefined
-        (
-          child.min === 1 || // if min is 1, we just require the value to be present
-          ( // if min is above 1, we require the value to be an array with at least min items
-            Array.isArray(result[name]) &&
-            result[name].length >= child.min
-          )
-        )
-      );
-
-      // TODO: this next part is shown to not be coverred by tests,
-      // but we do test slices comprehensively... make sure we are not missing something here...
-      if (!satisfied) {
-        // if this is an array element and has a single possible name, it may have slices that satisfy the requirement.
-        // so before we throw on missing mandatory child, we will check if any of the keys in the result start with name[0]:
-        const isArrayElement = child.__isArray && child.__name.length === 1;
-        if (isArrayElement) {
-          const arrayName = child.__name[0];
-          const hasSlice = Object.keys(result).some(key => key.startsWith(`${arrayName}:`));
-          if (hasSlice) {
-            continue; // skip this child, slices satisfy the requirement
-          }
-        }
-        const err = FlashErrorGenerator.createFhirContextError("F5130", expr, {
-          fhirParent: (expr.flashPathRefKey || expr.instanceof).replace('::', '/'),
-          fhirElement: child.__flashPathRefKey.split('::')[1]
-        });
-        if (policy.enforce(err)) {
-          throw err;
-        }
-        // downgraded: continue without throwing
-      }
+      mandatories.push({ id: child.id, names: child.__name, min: child.min, kind: child.__kind, __flashPathRefKey: child.__flashPathRefKey });
+    }
+    if (mandatories.length > 0) {
+      result[Symbol.for('fumifier.__mandatoryChildren')] = mandatories;
     }
   }
 
@@ -932,9 +902,15 @@ function createFlashEvaluator(evaluate) {
       }
     }
 
-    validateMandatoryChildren(result, children, expr, environment);
+    attachMandatoryChildren(result, children, expr, environment);
 
-    // Flatten FHIR primitive values in the final result JUST BEFORE returning
+    // Validate mandatory children at root level - only for non-virtual flash blocks
+    if (expr.isFlashBlock && !expr.isVirtualRule) {
+      const mandatories = result[Symbol.for('fumifier.__mandatoryChildren')];
+      if (mandatories && Array.isArray(mandatories)) {
+        validateMandatoryChildren(result, mandatories, expr, environment);
+      }
+    }    // Flatten FHIR primitive values in the final result JUST BEFORE returning
     if (result && typeof result === 'object' && !Array.isArray(result)) {
       result = ResultProcessor.flattenPrimitiveValues(result);
     }

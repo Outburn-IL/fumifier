@@ -19,12 +19,36 @@ void async function () {
   var navigator = new FhirStructureNavigator(generator);
 
   var expression = `
-  InstanceOf: Extension
-  * url = 'http://example.org/fhir/StructureDefinition/SystolicBP'
-  * ($index := 0; 8).extension
-    * url = 'abc' & $string($index)
-    * valueString = 'value' & $string($index + 1)
+// InstanceOf: dual-assignment-test-profile
+// * name
+//   * given = 'John'
+//   * family = 'Doe'
+// // should create a single entry in identifier array
+// // should include system, value, and use
+// // since the TestSlice is max=1
+// * identifier[TestSlice].value = '12345'
+// * identifier[TestSlice].use = 'official'
 
+
+// InstanceOf: il-core-patient
+// * gender = 'male'
+// * birthDate = '1980-01-01'
+// * identifier[il-id].value = '123456789'
+// * name
+//   * family = 'Doe'
+//   * given = ['John', 'A.']
+// * extension[hmo].value.coding
+//   * code = 'UNK'
+//   * system = 'http://terminology.hl7.org/CodeSystem/v3-NullFlavor'
+
+
+// InstanceOf: TestSliceValidation
+// * status = 'unknown'
+// * code.coding[OptionalSlice]
+
+
+Instance: ''
+InstanceOf: CodeableConcept
 `
 ;
 
@@ -35,8 +59,6 @@ void async function () {
     console.log('Compiling expression...');
     expr = await fumifier(expression, {
       navigator
-    }, {
-      logLevel: 70
     });
     console.log('Expression compiled successfully');
   } catch (e) {
@@ -48,21 +70,22 @@ void async function () {
   var res;
 
   try {
-    res = await expr.evaluate({
-      resourceType: "Patient"
-    }, { logLevel: 50, validationLevel: 30, throwLevel: 13, collectLevel: 70 });
+    res = await expr.evaluate(
+      {
+        resourceType: "Patient"
+      },
+      {
+        // logLevel: 50,
+        // validationLevel: 30,
+        // throwLevel: 13,
+        // collectLevel: 70
+      });
     console.log('Expression evaluated successfully');
   } catch (e) {
     console.error('Error evaluating expression:');
     console.error('Code:', e.code);
     console.error('Message:', e.message);
-    console.error('Details:', {
-      fhirElement: e.fhirElement,
-      fhirType: e.fhirType,
-      actualLength: e.actualLength,
-      maxLength: e.maxLength,
-      instanceOf: e.instanceOf
-    });
+    console.error('Details:', e);
   }
 
   // Write AST to file if available

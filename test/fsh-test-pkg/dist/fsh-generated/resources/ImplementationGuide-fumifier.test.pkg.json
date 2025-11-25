@@ -51,6 +51,14 @@
       },
       {
         "reference": {
+          "reference": "StructureDefinition/dual-assignment-test-profile"
+        },
+        "name": "Dual Assignment Test Profile",
+        "description": "A test profile for validating dual assignment behavior with sliced identifiers",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
           "reference": "StructureDefinition/ExtensionWithPolySlice"
         },
         "name": "ExtensionWithPolySlice",
@@ -109,6 +117,14 @@
           "reference": "StructureDefinition/ext-hearing-loss"
         },
         "name": "HearingLossDisability",
+        "exampleBoolean": false
+      },
+      {
+        "reference": {
+          "reference": "StructureDefinition/MandatoryChildOnSliceHead"
+        },
+        "name": "Mandatory Child On Slice Head Profile",
+        "description": "A test profile for validating mandatory child behavior with sliced identifiers",
         "exampleBoolean": false
       },
       {

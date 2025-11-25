@@ -1,0 +1,12 @@
+InstanceOf: dual-assignment-test-profile
+// Using nested assignment syntax instead of separate assignments
+* identifier[TestSlice]
+  * use = 'official'
+  * value = '67890'
+* name
+  * family = 'Smith'
+  * given = 'Jane'
+* contact
+  * name
+    * family = 'Emergency'
+    * given = 'Person'
