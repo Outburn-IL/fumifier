@@ -46,9 +46,12 @@ void async function () {
 // * status = 'unknown'
 // * code.coding[OptionalSlice]
 
-
-Instance: ''
-InstanceOf: CodeableConcept
+Instance: '123'
+InstanceOf: TestSliceValidation
+$a := 'b'
+* status = 'unknown'; 
+* code.coding[MandatorySlice].display = $a;
+// $a := 'b';
 `
 ;
 

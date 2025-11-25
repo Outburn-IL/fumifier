@@ -1,0 +1,11 @@
+{
+  "skip": false,
+  "description": "Instance of Patient with id rule and trailing semicolon (should work same as without semicolon)",
+  "data": null,
+  "bindings": {},
+  "result": {
+    "resourceType": "Patient",
+    "id": "ab-c.123-CAPITAL-then-lower.case"
+  },
+  "expr-file": "flash-semicolon001.fume"
+}

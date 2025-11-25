@@ -1,0 +1,13 @@
+{
+  "skip": false,
+  "description": "Complex expressions with function calls and semicolons",
+  "data": null,
+  "bindings": {},
+  "result": {
+    "resourceType": "Patient",
+    "id": "pat-123",
+    "gender": "male",
+    "active": false
+  },
+  "expr-file": "flash-semicolon014.fume"
+}

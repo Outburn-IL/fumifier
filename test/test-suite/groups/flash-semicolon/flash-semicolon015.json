@@ -1,0 +1,28 @@
+{
+  "skip": false,
+  "description": "Object literal assignment with semicolon followed by simple assignment",
+  "data": null,
+  "bindings": {},
+  "result": {
+    "resourceType": "Patient",
+    "contact": [
+      {
+        "relationship": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/v2-0131",
+                "code": "C"
+              }
+            ]
+          }
+        ],
+        "name": {
+          "family": "Emergency"
+        }
+      }
+    ],
+    "active": true
+  },
+  "expr-file": "flash-semicolon015.fume"
+}

@@ -1,0 +1,4 @@
+$var := 'hello';
+(InstanceOf: Patient
+* id = $var;
+* active = false)

@@ -1,0 +1,3 @@
+InstanceOf: Patient
+* gender = 'male';
+* birthDate = '1980-01-01'

@@ -1,0 +1,15 @@
+{
+  "skip": false,
+  "description": "All inline assignments have trailing semicolons",
+  "data": null,
+  "bindings": {},
+  "result": {
+    "resourceType": "Observation",
+    "status": "final",
+    "code": {
+      "text": "abc"
+    },
+    "effectiveDateTime": "2025-07-21T01:05-05:00"
+  },
+  "expr-file": "flash-semicolon003.fume"
+}

@@ -1,0 +1,17 @@
+{
+  "skip": false,
+  "description": "Nested subrules with mixed semicolon usage - some subrules have semicolons",
+  "data": null,
+  "bindings": {},
+  "result": {
+    "resourceType": "Patient",
+    "name": [
+      {
+        "family": "Doe",
+        "given": ["John"],
+        "use": "official"
+      }
+    ]
+  },
+  "expr-file": "flash-semicolon011.fume"
+}

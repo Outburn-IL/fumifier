@@ -1,0 +1,12 @@
+{
+  "skip": false,
+  "description": "Instance declaration with InstanceOf and semicolons on assignments",
+  "data": null,
+  "bindings": {},
+  "result": {
+    "resourceType": "Patient",
+    "id": "test-patient",
+    "active": true
+  },
+  "expr-file": "flash-semicolon005.fume"
+}

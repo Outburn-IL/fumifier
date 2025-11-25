@@ -1,0 +1,5 @@
+InstanceOf: SimpleQuantity
+* value = 100;
+* unit = 'mg';
+* system = 'http://unitsofmeasure.org';
+* code = 'mg';

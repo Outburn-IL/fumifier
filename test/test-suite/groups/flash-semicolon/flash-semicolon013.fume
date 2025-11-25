@@ -1,0 +1,3 @@
+InstanceOf: Patient
+* name.given = ['John', 'Michael'];
+* telecom.value = 'john@example.com';

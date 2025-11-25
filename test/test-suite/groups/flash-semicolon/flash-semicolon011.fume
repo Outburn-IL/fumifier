@@ -1,0 +1,5 @@
+InstanceOf: Patient
+* name
+  * family = 'Doe';
+  * given = ['John']
+  * use = 'official';
