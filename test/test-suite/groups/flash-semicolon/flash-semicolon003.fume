@@ -1,0 +1,4 @@
+InstanceOf: Observation
+* status = 'final';
+* code.text = 'abc';
+* effectiveDateTime = '2025-07-21T01:05-05:00';

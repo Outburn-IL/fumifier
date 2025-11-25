@@ -1,0 +1,12 @@
+{
+  "skip": false,
+  "description": "Mixed semicolon usage - first rule with semicolon, second without",
+  "data": null,
+  "bindings": {},
+  "result": {
+    "resourceType": "Patient",
+    "gender": "male",
+    "birthDate": "1980-01-01"
+  },
+  "expr-file": "flash-semicolon002.fume"
+}

@@ -1,0 +1,13 @@
+{
+  "skip": false,
+  "description": "Boolean and numeric assignments with trailing semicolons",
+  "data": null,
+  "bindings": {},
+  "result": {
+    "resourceType": "Patient",
+    "active": true,
+    "deceasedBoolean": false,
+    "multipleBirthInteger": 2
+  },
+  "expr-file": "flash-semicolon012.fume"
+}

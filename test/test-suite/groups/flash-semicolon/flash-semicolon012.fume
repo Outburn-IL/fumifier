@@ -1,0 +1,4 @@
+InstanceOf: Patient
+* active = true;
+* deceasedBoolean = false;
+* multipleBirthInteger = 2;

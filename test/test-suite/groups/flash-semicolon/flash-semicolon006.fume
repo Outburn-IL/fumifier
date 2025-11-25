@@ -1,0 +1,4 @@
+InstanceOf: CodeableConcept
+* text = 'Some text value';
+* coding.system = 'http://snomed.info/sct';
+* coding.code = '123456';

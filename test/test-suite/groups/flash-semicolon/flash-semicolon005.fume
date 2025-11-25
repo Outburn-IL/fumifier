@@ -1,0 +1,4 @@
+Instance: 'my-patient'
+InstanceOf: Patient
+* id = 'test-patient';
+* active = true;

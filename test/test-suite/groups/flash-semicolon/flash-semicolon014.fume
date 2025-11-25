@@ -1,0 +1,4 @@
+InstanceOf: Patient
+* id = 'pat' & '-' & '123';
+* gender = 'male'
+* active = $exists(gender);

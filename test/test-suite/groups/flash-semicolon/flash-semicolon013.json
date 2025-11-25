@@ -1,0 +1,20 @@
+{
+  "skip": false,
+  "description": "Name and telecom assignments with mixed semicolon usage",
+  "data": null,
+  "bindings": {},
+  "result": {
+    "resourceType": "Patient",
+    "name": [
+      {
+        "given": ["John", "Michael"]
+      }
+    ],
+    "telecom": [
+      {
+        "value": "john@example.com"
+      }
+    ]
+  },
+  "expr-file": "flash-semicolon013.fume"
+}

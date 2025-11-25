@@ -1,0 +1,13 @@
+InstanceOf: Patient
+* contact = {
+  "relationship": [{
+    "coding": [{
+      "system": "http://terminology.hl7.org/CodeSystem/v2-0131",
+      "code": "C"
+    }]
+  }],
+  "name": {
+    "family": "Emergency"
+  }
+};
+* active = true

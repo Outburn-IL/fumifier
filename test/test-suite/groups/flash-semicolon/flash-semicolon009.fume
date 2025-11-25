@@ -1,0 +1,4 @@
+InstanceOf: HumanName
+* family = 'Smith'
+* given = ['John'];
+* use = 'official';

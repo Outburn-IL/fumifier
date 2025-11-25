@@ -1,0 +1,12 @@
+{
+  "skip": false,
+  "description": "Variable binding with semicolon and flash block with semicolons in parentheses",
+  "data": null,
+  "bindings": {},
+  "result": {
+    "resourceType": "Patient",
+    "id": "hello",
+    "active": false
+  },
+  "expr-file": "flash-semicolon007.fume"
+}

@@ -1,0 +1,12 @@
+{
+  "skip": false,
+  "description": "HumanName with selective semicolon usage - only some rules have semicolons",
+  "data": null,
+  "bindings": {},
+  "result": {
+    "family": "Smith",
+    "given": ["John"],
+    "use": "official"
+  },
+  "expr-file": "flash-semicolon009.fume"
+}

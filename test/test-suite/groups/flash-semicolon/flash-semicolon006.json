@@ -1,0 +1,18 @@
+{
+  "skip": false,
+  "description": "CodeableConcept with coding assignment and trailing semicolons",
+  "data": null,
+  "bindings": {},
+  "result": {
+    "text": "Some text value",
+    "coding": [
+      {
+        "system": "http://snomed.info/sct"
+      },
+      {
+        "code": "123456"
+      }
+    ]
+  },
+  "expr-file": "flash-semicolon006.fume"
+}

@@ -1,0 +1,13 @@
+{
+  "skip": false,
+  "description": "SimpleQuantity with all inline assignments having semicolons",
+  "data": null,
+  "bindings": {},
+  "result": {
+    "value": 100,
+    "unit": "mg",
+    "system": "http://unitsofmeasure.org",
+    "code": "mg"
+  },
+  "expr-file": "flash-semicolon008.fume"
+}

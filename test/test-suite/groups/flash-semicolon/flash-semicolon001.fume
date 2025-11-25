@@ -1,0 +1,2 @@
+InstanceOf: Patient
+* id = 'ab-c.123-CAPITAL-then-lower.case';
