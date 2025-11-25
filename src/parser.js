@@ -769,6 +769,23 @@ const parser = (() => {
           advance('=');
           if (node.id !== '(end)' && node.id !== '(indent)') {
             this.inlineExpression = expression(0);
+            // Allow optional trailing semicolon after inline expression for backwards compatibility
+            if (node.id === ';') {
+              var semicolonLine = node.line;
+              advance(';');
+              // After semicolon, next token must be on a new line (indent) or end of expression
+              // If it's on the same line, that's an error
+              if (node.id !== '(end)' && node.id !== '(indent)' && node.line === semicolonLine) {
+                return handleError({
+                  code: "F1103",
+                  stack: (new Error()).stack,
+                  position: node.position,
+                  start: node.start,
+                  line: node.line,
+                  token: ";"
+                });
+              }
+            }
           } else {
             // missing inline expression after '='
             return handleError({
