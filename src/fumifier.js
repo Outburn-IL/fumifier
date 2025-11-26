@@ -47,10 +47,17 @@ import { createDefaultLogger, SYM, decide, push, thresholds, severityFromCode, L
  */
 
 /**
+ * @typedef MappingCacheInterface
+ * @property {() => Promise<string[]>} getKeys - Get the list of available mapping names.
+ * @property {(key: string) => Promise<string>} get - Get a mapping expression by key/name.
+ */
+
+/**
  * @typedef FumifierOptions
  * @property {boolean} [recover] Attempt to recover on parse error.
  * @property {FhirStructureNavigator} [navigator] FHIR structure navigator used to resolve FLASH constructs.
  * @property {AstCacheInterface} [astCache] Optional AST cache implementation for parsed expressions. Defaults to shared LRU cache.
+ * @property {MappingCacheInterface} [mappingCache] Optional mapping repository for named expressions.
  */
 
 /**
@@ -1585,6 +1592,7 @@ var fumifier = (function() {
         proc.token = procName;
         proc.position = expr.position;
         proc.start = expr.start;
+        proc.line = expr.line;
       }
       result = await apply(proc, evaluatedArgs, input, environment);
     } catch (err) {
@@ -1592,6 +1600,7 @@ var fumifier = (function() {
         // add the position field to the error
         err.position = expr.position;
         err.start = expr.start;
+        err.line = expr.line;
       }
       if (!err.token) {
         // and the function identifier
@@ -1688,6 +1697,7 @@ var fumifier = (function() {
         }
         err.position = proc.position || err.position;
         err.start = proc.start || err.start;
+        err.line = proc.line || err.line;
       }
       throw err;
     }
@@ -1894,37 +1904,22 @@ var fumifier = (function() {
   }
 
   /**
-     * parses and evaluates the supplied expression
-     * @param {string} expr - expression to evaluate
-     * @param {*} focus - optional input data to evaluate the expression against. If not provided, inherited context is used.
-     * @returns {Promise<any>} - result of evaluating the expression
-     */
-  async function functionEval(expr, focus) {
-    // undefined inputs always return undefined
-    if(typeof expr === 'undefined') {
-      return undefined;
-    }
-    var input = this.input;
-    if(typeof focus !== 'undefined') {
-      input = focus;
-      // if the input is a JSON array, then wrap it in a singleton sequence so it gets treated as a single input
-      if(Array.isArray(input) && !isSequence(input)) {
-        input = createSequence(input);
-        input.outerWrapper = true;
-      }
-    }
-
+   * Common AST parsing and caching logic used by multiple evaluation paths
+   * @param {string} expr - The expression string to parse
+   * @param {boolean} recover - Whether to use recovery mode parsing
+   * @param {Object} navigator - FHIR navigator for FLASH processing
+   * @param {AstCacheInterface} astCacheImpl - AST cache implementation
+   * @param {Object} compiledFhirRegex - Compiled regex cache object
+   * @param {string} errorContextCode - Error code context for wrapping parse errors
+   * @param {boolean} [isFactoryContext=false] - Whether this is called from the main factory (affects error handling)
+   * @returns {Promise<Object>} Parsed and potentially resolved AST
+   */
+  async function parseAndCacheExpression(expr, recover, navigator, astCacheImpl, compiledFhirRegex, errorContextCode = 'D3120', isFactoryContext = false) {
     let ast;
+
     try {
-      const env = this.environment;
-      const navigator = env && env.lookup(Symbol.for('fumifier.__navigator'));
-
       // Create expression identity for caching
-      // Note: $eval always uses recover=false (no recovery mode for inner expressions)
-      const identity = createExpressionIdentity(expr, false, navigator);
-
-      // Use the same AST cache implementation as the parent fumifier instance
-      const astCacheImpl = env && env.lookup(Symbol.for('fumifier.__astCacheImpl')) || new AstCacheInterface(getDefaultCache());
+      const identity = createExpressionIdentity(expr, recover, navigator);
 
       // Try to get from AST cache first
       try {
@@ -1938,32 +1933,45 @@ var fumifier = (function() {
         // AST cache miss - parse with inflight deduplication
         const cacheKey = JSON.stringify(identity);
         ast = await astCacheImpl.getOrCreateInflight(cacheKey, async () => {
-          const parsedAst = parser(expr, false);
+          const parsedAst = parser(expr, recover);
           // Ensure errors array exists in AST before any caching
           if (!parsedAst.errors) {
             parsedAst.errors = [];
           }
 
-          // Post-parse FLASH processing for inner $eval expressions
-          // Inherit navigator from the factory; callers of $eval do not (and must not) pass it.
+          // Post-parse FLASH processing if needed
           if (parsedAst && parsedAst.containsFlash === true) {
             if (!navigator) {
               // Mirror factory behavior for missing navigator with FLASH content
               const err = { code: 'F1000', position: 0 };
-              err.stack = (new Error()).stack;
-              throw err; // will be wrapped as D3120 below
-            }
-            const compiledFhirRegex = env && env.lookup(Symbol.for('fumifier.__compiledFhirRegex_OBJ'));
-            const errors = []; // no recover mode for $eval; collect if needed but do not expose
-            const resolvedAst = await resolveDefinitions(parsedAst, navigator, false, errors, compiledFhirRegex);
 
-            // Cache the resolved AST
-            try {
-              await astCacheImpl.set(identity, resolvedAst);
-            } catch (cacheError) {
-              // If AST cache fails, continue without caching
+              if (recover) {
+                err.type = 'error';
+                parsedAst.errors.push(err);
+                // Cache and return the AST with errors in recover mode
+                try {
+                  await astCacheImpl.set(identity, parsedAst);
+                } catch (cacheError) {
+                  // If AST cache fails, continue without caching
+                }
+                return parsedAst;
+              } else {
+                err.stack = (new Error()).stack;
+                throw err; // will be wrapped with errorContextCode
+              }
+            } else {
+              // Resolve FHIR definitions
+              const errors = recover ? parsedAst.errors : []; // collect errors if in recover mode
+              const resolvedAst = await resolveDefinitions(parsedAst, navigator, recover, errors, compiledFhirRegex);
+
+              // Cache the resolved AST
+              try {
+                await astCacheImpl.set(identity, resolvedAst);
+              } catch (cacheError) {
+                // If AST cache fails, continue without caching
+              }
+              return resolvedAst;
             }
-            return resolvedAst;
           }
 
           // Cache the parsed AST for non-FLASH expressions
@@ -1976,47 +1984,286 @@ var fumifier = (function() {
         });
       }
     } catch(err) {
-      // error parsing the expression (or resolving FLASH definitions) passed to $eval
-      populateMessage(err);
-      throw {
-        stack: (new Error()).stack,
-        code: "D3120",
-        value: err.message,
-        error: err
-      };
-    }
-    try {
-      // Evaluate with environment inherited from the caller, overriding only the
-      // FHIR resolved definitions when this inner AST contains FLASH content.
-      // Note: thresholds/logging/diagnostics and regex GET/SET remain inherited.
-      let evalEnv = this.environment;
-      if (ast && ast.containsFlash === true) {
-        const localEnv = createFrame(this.environment);
-        localEnv.bind(Symbol.for('fumifier.__resolvedDefinitions'), {
-          typeMeta: ast.resolvedTypeMeta,
-          baseTypeMeta: ast.resolvedBaseTypeMeta,
-          typeChildren: ast.resolvedTypeChildren,
-          elementDefinitions: ast.resolvedElementDefinitions,
-          elementChildren: ast.resolvedElementChildren,
-          resolvedValueSetExpansions: ast.resolvedValueSetExpansions
-        });
-        // TODO(inner-verbose): if we add support for inner verbose mode in $eval, we
-        // will need to plumb a verbose flag and return a structured report instead of
-        // throwing. For now, inner $eval is always non-verbose by design.
-        evalEnv = localEnv;
+      // error parsing the expression (or resolving FLASH definitions)
+      if (isFactoryContext) {
+        // For factory context, re-throw the original error to maintain existing behavior
+        throw err;
+      } else {
+        // For inner contexts ($eval, mappings), wrap the error
+        throw {
+          stack: (new Error()).stack,
+          code: errorContextCode,
+          value: err.message || err,
+          error: err
+        };
       }
+    }
+
+    return ast;
+  }
+
+  /**
+   * Common evaluation environment setup logic
+   * @param {Object} baseEnvironment - The base environment to extend
+   * @param {Object} bindings - Optional variable bindings
+   * @param {any} input - Input data
+   * @param {Object} mappingCache - Optional mapping cache
+   * @param {boolean} [setupTimestamp=true] - Whether to set up timestamp/executionId
+   * @returns {Promise<Object>} Prepared evaluation environment
+   */
+  async function setupEvaluationEnvironment(baseEnvironment, bindings, input, mappingCache, setupTimestamp = true) {
+    let exec_env;
+
+    if (typeof bindings !== 'undefined' && bindings !== null) {
+      // Create a new frame with the provided bindings
+      exec_env = createFrame(baseEnvironment);
+      for (const key in bindings) {
+        exec_env.bind(key, bindings[key]);
+      }
+    } else {
+      exec_env = baseEnvironment;
+    }
+
+    // Set up execution context
+    if (setupTimestamp) {
+      const timestamp = new Date();
+      const executionId = utils.generateUuid();
+      exec_env.timestamp = timestamp;
+      exec_env.executionId = executionId;
+      exec_env.bind('executionId', executionId);
+    }
+
+    exec_env.bind('$', input);
+
+    // Bind mapping functions from the mapping cache if available
+    if (mappingCache) {
+      await bindMappingFunctions(exec_env, mappingCache);
+    }
+
+    return exec_env;
+  }  /**
+   * Normalize input data for evaluation (wrap arrays as singleton sequences)
+   * @param {any} input - Raw input data
+   * @returns {any} Normalized input data
+   */
+  function normalizeEvaluationInput(input) {
+    // Ensure array focus is wrapped as a singleton sequence
+    if (Array.isArray(input) && !isSequence(input)) {
+      input = createSequence(input);
+      input.outerWrapper = true;
+    }
+    return input;
+  }
+
+  /**
+   * Setup FLASH evaluation environment with resolved definitions
+   * @param {Object} baseEnvironment - Base environment
+   * @param {Object} ast - AST with potential FLASH content
+   * @returns {Object} Environment with FLASH definitions if needed
+   */
+  function setupFlashEnvironment(baseEnvironment, ast) {
+    if (ast && ast.containsFlash === true) {
+      const localEnv = createFrame(baseEnvironment);
+      localEnv.bind(Symbol.for('fumifier.__resolvedDefinitions'), {
+        typeMeta: ast.resolvedTypeMeta,
+        baseTypeMeta: ast.resolvedBaseTypeMeta,
+        typeChildren: ast.resolvedTypeChildren,
+        elementDefinitions: ast.resolvedElementDefinitions,
+        elementChildren: ast.resolvedElementChildren,
+        resolvedValueSetExpansions: ast.resolvedValueSetExpansions
+      });
+      return localEnv;
+    }
+    return baseEnvironment;
+  }
+
+  /**
+     * parses and evaluates the supplied expression
+     * @param {string} expr - expression to evaluate
+     * @param {*} focus - optional input data to evaluate the expression against. If not provided, inherited context is used.
+     * @returns {Promise<any>} - result of evaluating the expression
+     */
+  async function functionEval(expr, focus) {
+    // undefined inputs always return undefined
+    if(typeof expr === 'undefined') {
+      return undefined;
+    }
+
+    var input = this.input;
+    if(typeof focus !== 'undefined') {
+      input = normalizeEvaluationInput(focus);
+    }
+
+    const env = this.environment;
+    const navigator = env && env.lookup(Symbol.for('fumifier.__navigator'));
+    const astCacheImpl = env && env.lookup(Symbol.for('fumifier.__astCacheImpl')) || new AstCacheInterface(getDefaultCache());
+    const compiledFhirRegex = env && env.lookup(Symbol.for('fumifier.__compiledFhirRegex_OBJ'));
+
+    let ast;
+    try {
+      // Parse and cache the expression (Note: $eval always uses recover=false)
+      ast = await parseAndCacheExpression(expr, false, navigator, astCacheImpl, compiledFhirRegex, "D3120");
+    } catch(err) {
+      // error parsing the expression (or resolving FLASH definitions) passed to $eval
+      populateMessage(err, this.environment);
+      throw err; // parseAndCacheExpression already formats the error correctly
+    }
+
+    try {
+      // Set up FLASH environment if needed, otherwise use inherited environment
+      const evalEnv = setupFlashEnvironment(this.environment, ast);
+
+      // TODO(inner-verbose): if we add support for inner verbose mode in $eval, we
+      // will need to plumb a verbose flag and return a structured report instead of
+      // throwing. For now, inner $eval is always non-verbose by design.
 
       var result = await evaluate(ast, input, evalEnv);
       return result;
     } catch(err) {
       // error evaluating the expression passed to $eval
-      populateMessage(err);
+      populateMessage(err, this.environment);
       throw {
         stack: (new Error()).stack,
         code: "D3121",
         value:err.message,
         error: err
       };
+    }
+  }
+
+  /**
+   * Creates a mapping function for a specific mapping key
+   * @param {string} mappingKey - The key to fetch from the mapping cache
+   * @param {MappingCacheInterface} mappingCache - The mapping cache instance
+   * @returns {Function} A function that evaluates the mapping expression
+   */
+  function createMappingFunction(mappingKey, mappingCache) {
+    return async function(input, bindings) {
+      // Get the mapping cache - use passed cache or environment cache
+      const actualMappingCache = mappingCache || (this.environment && this.environment.lookup(Symbol.for('fumifier.__mappingCache')));
+
+      if (!actualMappingCache) {
+        // No cache available - this should not happen if mappings are properly bound
+        // Let the natural flow handle this as a missing function
+        return undefined;
+      }
+
+      // Get the expression from the mapping cache
+      let expr;
+      try {
+        expr = await actualMappingCache.get(mappingKey);
+      } catch(sourceError) {
+        populateMessage(sourceError, this.environment);
+        // Cache error - throw specific error
+        throw {
+          code: "F3006",
+          sourceErrorCode: sourceError.code || 'Unknown',
+          value: mappingKey,
+          sourceMessage: sourceError.message || sourceError,
+          sourceError,
+          stack: (new Error()).stack
+        };
+      }
+
+      if (typeof expr === 'undefined') {
+        // Mapping not found - let natural flow handle as missing function
+        return undefined;
+      }
+
+      if (typeof expr !== 'string') {
+        throw {
+          code: "D3131",
+          value: `Mapping '${mappingKey}' must be a string expression`,
+          stack: (new Error()).stack
+        };
+      }
+
+      // Determine the input to use
+      var evalInput = this.input; // default to context value
+      if (typeof input !== 'undefined') {
+        evalInput = normalizeEvaluationInput(input);
+      }
+
+      // Create a new evaluation environment with bindings if provided
+      var evalEnv = this.environment;
+      if (typeof bindings === 'object' && bindings !== null && !Array.isArray(bindings)) {
+        // Create a new frame with the provided bindings
+        evalEnv = createFrame(this.environment);
+        for (const key in bindings) {
+          evalEnv.bind(key, bindings[key]);
+        }
+      }
+
+      // Parse and cache the mapping expression (Note: mappings always use recover=false like $eval)
+      const navigator = evalEnv && evalEnv.lookup(Symbol.for('fumifier.__navigator'));
+      const astCacheImpl = evalEnv && evalEnv.lookup(Symbol.for('fumifier.__astCacheImpl')) || new AstCacheInterface(getDefaultCache());
+      const compiledFhirRegex = evalEnv && evalEnv.lookup(Symbol.for('fumifier.__compiledFhirRegex_OBJ'));
+
+      let ast;
+      try {
+        ast = await parseAndCacheExpression(expr, false, navigator, astCacheImpl, compiledFhirRegex, "F3002");
+      } catch(parseError) {
+        // error parsing the mapping expression - customize error format for mapping context
+        populateMessage(parseError.error || parseError, this.environment);
+        throw {
+          code: "F3002",
+          sourceErrorCode: (parseError.error && parseError.error.code) || parseError.code || 'Unknown',
+          value: mappingKey,
+          sourceMessage: (parseError.error && parseError.error.message) || parseError.message || parseError.value || parseError,
+          sourceError: parseError.error || parseError,
+          stack: (new Error()).stack
+        };
+      }
+
+      try {
+        // Set up FLASH environment if needed
+        var finalEvalEnv = setupFlashEnvironment(evalEnv, ast);
+
+        var result = await evaluate(ast, evalInput, finalEvalEnv);
+        return result;
+      } catch(sourceError) {
+        // error evaluating the mapping expression
+        populateMessage(sourceError, this.environment);
+        throw {
+          code: 'F3001',
+          sourceErrorCode: sourceError.code || 'Unknown',
+          value: mappingKey,
+          sourceMessage: sourceError.message || sourceError,
+          sourceError,
+          stack: (new Error()).stack
+        };
+      }
+    };
+  }
+
+  /**
+   * Binds all mappings from the mapping cache as functions in the environment
+   * @param {Object} env - The environment to bind mappings to
+   * @param {MappingCacheInterface} mappingCache - The mapping cache instance
+   */
+  async function bindMappingFunctions(env, mappingCache) {
+    if (!mappingCache) {
+      return; // No mapping cache provided
+    }
+
+    try {
+      const mappingKeys = await mappingCache.getKeys();
+
+      for (const mappingKey of mappingKeys) {
+        // Create a function for this mapping
+        const mappingFunction = createMappingFunction(mappingKey, mappingCache);
+
+        // Define the function with appropriate signature
+        // Accept optional input and optional bindings object
+        const definedFunction = defineFunction(mappingFunction, '<x?o?:x>');
+
+        // Bind the function to the environment using the mapping key as the function name
+        env.bind(mappingKey, definedFunction);
+      }
+    } catch (err) {
+      // Error getting mapping keys - log warning but don't fail evaluation
+      const logger = env.lookup(SYM.logger) || createDefaultLogger();
+      logger.warn(`Failed to load mappings from mapping cache: ${err.message || err}`);
     }
   }
 
@@ -2084,6 +2331,7 @@ var fumifier = (function() {
     var ast;
     var navigator = options && options.navigator;
     var recover = options && options.recover;
+    var mappingCache = options && options.mappingCache;
     var compiledFhirRegex = {};
 
     // Get AST cache implementation - use external AST cache if provided, otherwise use default
@@ -2091,75 +2339,8 @@ var fumifier = (function() {
 
     try {
       if (typeof expr === 'string') {
-        // Create expression identity for caching
-        const identity = createExpressionIdentity(expr, recover, navigator);
-
-        // Try to get from AST cache first
-        try {
-          ast = await astCacheImpl.get(identity);
-        } catch (cacheError) {
-          // If AST cache fails, proceed without caching
-          ast = null;
-        }
-
-        if (!ast) {
-          // AST cache miss - parse with inflight deduplication
-          const cacheKey = JSON.stringify(identity);
-          ast = await astCacheImpl.getOrCreateInflight(cacheKey, async () => {
-            const parsedAst = parser(expr, recover);
-            // Ensure errors array exists in AST before any caching
-            if (!parsedAst.errors) {
-              parsedAst.errors = [];
-            }
-
-            // Post-parse FLASH processing if needed
-            if (parsedAst && parsedAst.containsFlash === true) {
-              if (!navigator) {
-                var err = {
-                  code: 'F1000',
-                  position: 0,
-                };
-
-                if (recover) {
-                  err.type = 'error';
-                  parsedAst.errors.push(err);
-                  // Cache and return the AST with errors in recover mode
-                  try {
-                    await astCacheImpl.set(identity, parsedAst);
-                  } catch (cacheError) {
-                    // If AST cache fails, continue without caching
-                  }
-                  return parsedAst;
-                } else {
-                  err.stack = (new Error()).stack;
-                  throw err;
-                }
-              } else {
-                // Resolve FHIR definitions
-                const resolvedAst = await resolveDefinitions(parsedAst, navigator, recover, parsedAst.errors, compiledFhirRegex);
-
-                // Cache the resolved AST (pure JSON, no functions)
-                try {
-                  await astCacheImpl.set(identity, resolvedAst);
-                } catch (cacheError) {
-                  // If AST cache fails, continue without caching
-                }
-                return resolvedAst;
-              }
-            }
-
-            // Cache the parsed AST for non-FLASH expressions
-            try {
-              await astCacheImpl.set(identity, parsedAst);
-            } catch (cacheError) {
-              // If AST cache fails, continue without caching
-            }
-            return parsedAst;
-          });
-        } else {
-          // Cache hit - AST already resolved, just ensure compiledFhirRegex is fresh
-          compiledFhirRegex = {};
-        }
+        // Use common parsing logic for string expressions
+        ast = await parseAndCacheExpression(expr, recover, navigator, astCacheImpl, compiledFhirRegex, 'S0500', true);
       } else if (typeof expr === 'object' && expr !== null) {
         // Assume it's a pre-parsed AST object
         if (!Object.prototype.hasOwnProperty.call(expr, 'type')) {
@@ -2240,10 +2421,11 @@ var fumifier = (function() {
       return compiled;
     });
 
-    // Expose navigator, compiled regex cache, and AST cache implementation to inner $eval() via environment lookup
+    // Expose navigator, compiled regex cache, AST cache implementation, and mapping cache to inner $eval() via environment lookup
     environment.bind(Symbol.for('fumifier.__navigator'), navigator);
     environment.bind(Symbol.for('fumifier.__compiledFhirRegex_OBJ'), compiledFhirRegex);
     environment.bind(Symbol.for('fumifier.__astCacheImpl'), astCacheImpl);
+    environment.bind(Symbol.for('fumifier.__mappingCache'), mappingCache);
 
     // bind the resolved definition collections
     environment.bind(Symbol.for('fumifier.__resolvedDefinitions'), {
@@ -2280,19 +2462,8 @@ var fumifier = (function() {
             }
           }
 
-          if (typeof bindings !== 'undefined') {
-            // the variable bindings have been passed in - create a frame to hold these
-            exec_env = createFrame(environment);
-            for (var v in bindings) {
-              exec_env.bind(v, bindings[v]);
-            }
-          } else {
-            exec_env = environment;
-          }
-          // fresh diagnostics bag per call
-          exec_env.bind(SYM.diagnostics, { error: [], warning: [], debug: [] });
-          // put the input document into the environment as the root object
-          exec_env.bind('$', input);
+          // Setup evaluation environment with common logic, but preserve original timestamp behavior
+          exec_env = await setupEvaluationEnvironment(environment, bindings, input, mappingCache, false);
 
           // capture the timestamp and executionId for this execution
           // the $now() and $millis() functions will return these values, $executionId is available as a variable
@@ -2302,11 +2473,11 @@ var fumifier = (function() {
           exec_env.executionId = executionId; // ensure tracing can access the execution ID
           exec_env.bind('executionId', executionId);
 
-          // Ensure array focus is wrapped as a singleton sequence
-          if(Array.isArray(input) && !isSequence(input)) {
-            input = createSequence(input);
-            input.outerWrapper = true;
-          }
+          // fresh diagnostics bag per call
+          exec_env.bind(SYM.diagnostics, { error: [], warning: [], debug: [] });
+
+          // Normalize input for evaluation
+          input = normalizeEvaluationInput(input);
 
           const result = await evaluate(ast, input, exec_env);
 
@@ -2317,11 +2488,7 @@ var fumifier = (function() {
           return result;
         } catch (err) {
           // insert error message into structure
-          populateMessage(err); // possible side-effects on `err`
-          // Add executionId to error for traceability
-          if (exec_env && exec_env.executionId) {
-            err.executionId = exec_env.executionId;
-          }
+          populateMessage(err, exec_env);
           try {
             const bag = exec_env && typeof exec_env.lookup === 'function' ? exec_env.lookup(SYM.diagnostics) : null;
             if (bag) err.flashDiagnostics = bag;
@@ -2335,10 +2502,16 @@ var fumifier = (function() {
       },
       evaluateVerbose: async function (input, bindings) {
         // Like evaluate(), but never throws for handled errors; returns a report
-        var exec_env = typeof bindings !== 'undefined' ? createFrame(environment) : environment;
-        if (typeof bindings !== 'undefined') {
-          for (var v in bindings) exec_env.bind(v, bindings[v]);
-        }
+
+        // Setup evaluation environment with common logic, but preserve original timestamp behavior
+        var exec_env = await setupEvaluationEnvironment(environment, bindings, input, mappingCache, false);
+
+        timestamp = new Date();
+        executionId = utils.generateUuid();
+        exec_env.timestamp = timestamp;
+        exec_env.executionId = executionId;
+        exec_env.bind('executionId', executionId);
+
         // TODO: Expose a validation inhibitor hook (Symbol) on the environment so callers
         // can provide custom suppression logic for certain validations. See enforcePolicy().
         // Example:
@@ -2346,28 +2519,16 @@ var fumifier = (function() {
         // Ensure downstream policy checks honor it.
         const bag = { error: [], warning: [], debug: [] };
         exec_env.bind(SYM.diagnostics, bag);
-        exec_env.bind('$', input);
 
-        timestamp = new Date();
-        executionId = utils.generateUuid();
-        exec_env.timestamp = timestamp;
-        exec_env.executionId = executionId;
-        exec_env.bind('executionId', executionId);
-        if(Array.isArray(input) && !isSequence(input)) {
-          input = createSequence(input);
-          input.outerWrapper = true;
-        }
+        // Normalize input for evaluation
+        input = normalizeEvaluationInput(input);
 
         let result;
         try {
           result = await evaluate(ast, input, exec_env);
         } catch (err) {
           // In verbose mode: never throw for any defined error (F/S/T/D). Only throw if completely unrecognized shape.
-          populateMessage(err);
-          // Add executionId to error for traceability
-          if (exec_env && exec_env.executionId) {
-            err.executionId = exec_env.executionId;
-          }
+          populateMessage(err, exec_env);
           // Use diagnostics push() with the original error (message populated); push() will sanitize
           push(exec_env, err);
         }
