@@ -358,6 +358,85 @@ describe('Mapping Repository Feature', function() {
         assert.strictEqual(err.code, 'F3006');
       }
     });
+
+    it('should throw F3008 when mapping cache returns non-string value', async function() {
+      const badTypeCache = {
+        async getKeys() {
+          return ['nonStringMapping'];
+        },
+        async get(key) {
+          if (key === 'nonStringMapping') {
+            // Return a non-string value (object, number, function, etc.)
+            return { someObject: 'value' };
+          }
+          return undefined;
+        }
+      };
+
+      const expr = '$nonStringMapping()';
+      const compiled = await fumifier(expr, { mappingCache: badTypeCache });
+
+      try {
+        await compiled.evaluate({});
+        assert.fail('Should have thrown an error');
+      } catch (err) {
+        assert.strictEqual(err.code, 'F3008');
+        assert.strictEqual(err.value, 'nonStringMapping');
+        assert.strictEqual(err.valueType, 'object');
+      }
+    });
+
+    it('should throw F3008 when mapping cache returns number instead of string', async function() {
+      const badTypeCache = {
+        async getKeys() {
+          return ['numberMapping'];
+        },
+        async get(key) {
+          if (key === 'numberMapping') {
+            return 42; // Return a number instead of a string
+          }
+          return undefined;
+        }
+      };
+
+      const expr = '$numberMapping()';
+      const compiled = await fumifier(expr, { mappingCache: badTypeCache });
+
+      try {
+        await compiled.evaluate({});
+        assert.fail('Should have thrown an error');
+      } catch (err) {
+        assert.strictEqual(err.code, 'F3008');
+        assert.strictEqual(err.value, 'numberMapping');
+        assert.strictEqual(err.valueType, 'number');
+      }
+    });
+
+    it('should throw F3008 when mapping cache returns function instead of string', async function() {
+      const badTypeCache = {
+        async getKeys() {
+          return ['functionMapping'];
+        },
+        async get(key) {
+          if (key === 'functionMapping') {
+            return function() { return 'test'; }; // Return a function instead of a string
+          }
+          return undefined;
+        }
+      };
+
+      const expr = '$functionMapping()';
+      const compiled = await fumifier(expr, { mappingCache: badTypeCache });
+
+      try {
+        await compiled.evaluate({});
+        assert.fail('Should have thrown an error');
+      } catch (err) {
+        assert.strictEqual(err.code, 'F3008');
+        assert.strictEqual(err.value, 'functionMapping');
+        assert.strictEqual(err.valueType, 'function');
+      }
+    });
   });
 
   describe('Nested Mapping Calls', function() {
