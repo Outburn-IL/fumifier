@@ -46,22 +46,41 @@ void async function () {
 // * status = 'unknown'
 // * code.coding[OptionalSlice]
 
-Instance: '123'
-InstanceOf: TestSliceValidation
-$a := 'b'
-* status = 'unknown'; 
-* code.coding[MandatorySlice].display = $a;
+// Instance: '123'
+// InstanceOf: TestSliceValidation
+// $a := 'b'
+// * status = 'unknown'; 
+// * code.coding[MandatorySlice].display = $a;
 // $a := 'b';
+
+$mapping1('other');
 `
 ;
 
   console.log('Starting debug script...');
 
   var expr;
+
+  const mappings = {
+    'mapping1': 'InstanceOf: Patient\n* gender1 = $',
+    'mapping2': '$mapping1($)'
+  };
+  const mappingCache = {
+    get: async (key) => {
+      console.log(`Retrieving mapping for key: ${key}`);
+      return mappings[key];
+    },
+    getKeys: async () => {
+      console.log('Retrieving all mapping keys');
+      return Object.keys(mappings);
+    }
+  };
+
   try {
     console.log('Compiling expression...');
     expr = await fumifier(expression, {
-      navigator
+      navigator,
+      mappingCache
     });
     console.log('Expression compiled successfully');
   } catch (e) {

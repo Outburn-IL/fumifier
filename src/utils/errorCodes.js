@@ -225,6 +225,10 @@ const errorCodes = {
   "F2007": "Element definition for {{value}} in {{fhirType}} has no type defined.",
   "F2008": "Failed to fetch definition of children for mandatory element {{value}} in {{fhirType}}.",
   "F3000": "This FLASH rule is not attached to an ElementDefinition. This compiled FUME expression may be corrupted and needs to be parsed again.",
+  "F3001": "Failed to evaluate mapping {{value}}: {{{sourceMessage}}}",
+  "F3002": "Failed to parse mapping {{value}}: {{{sourceMessage}}}",
+  "F3006": "Failed to retrieve mapping {{value}} from cache: {{{sourceMessage}}}",
+  "F3008": "Mapping {{value}} must be a string expression. Instead got type: {{valueType}}.",
   "F5110": "The value {{value}} is invalid for FHIR element {{fhirElement}} (type: {{fhirType}}) in {{instanceOf}}. The value must match the regular expression: {{{regex}}}",
   "F5111": "The value {{value}} is invalid for FHIR element {{fhirElement}} (type: {{fhirType}}) in {{instanceOf}}. The value must be a valid calendar date/dateTime.",
   "F5112": "The value {{value}} is invalid for FHIR element {{fhirElement}} (type: {{fhirType}}) in {{instanceOf}}. Strings must contain at least one non-whitespace character and may only include TAB, LF, CR, or Unicode characters U+0020 and above (excluding U+0080..U+009F).",
@@ -271,9 +275,10 @@ const errorCodes = {
  * Populates `err.message` with the substituted message. Leaves `err.message`
  * untouched if code lookup fails.
  * @param {string} err - error code to lookup
+ * @param {Object} [context] - optional execution context containing executionId
  * @returns {undefined} - `err` is modified in place
  */
-export function populateMessage(err) {
+export function populateMessage(err, context) {
   var template = errorCodes[err.code];
   if(typeof template !== 'undefined') {
     // if there are any handlebars, replace them with the field references
@@ -288,4 +293,10 @@ export function populateMessage(err) {
     err.message = message;
   }
   // Otherwise retain the original `err.message`
+
+  // Automatically add execution context if available and not already present
+  if (context && context.executionId && !err.executionId) {
+    err.executionId = context.executionId;
+  }
 }
+

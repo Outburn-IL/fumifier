@@ -20,11 +20,10 @@ TODO: This is a first draft of README.md and needs some adjustments/improvents/c
 12. CLI / REPL (future)
 13. Performance Notes
 14. Cached Parsing
-15. Roadmap
-16. Contributing
-17. Versioning & Release Process
-18. License & Attribution
-19. Acknowledgements
+15. Mapping Repository
+16. Syntax Enhancements
+17. Contributing
+18. Acknowledgements
 
 ---
 ## 1. What is Fumifier?
@@ -41,6 +40,11 @@ Fumifier compiles a FLASH expression string to an executable object, then evalua
 ## 2. Feature Highlights
 - Modern ES Module implementation (Node ≥ 20)
 - **Browser Entry Point** 🌐 **New in v1.4.0** – lightweight parsing-only module for browsers (~103KB vs ~341KB)
+- **Mapping Repository** 📚 **New in v1.8.0** – reusable expression library with caching support
+- **Trailing Semicolons** 📝 **New in v1.7.0** – optional semicolons in inline FLASH rule assignments
+- **Assume Block** 🔄 **New in v1.3.0** – semicolon-separated expressions at root level treated as implicit blocks
+- **Dual Assignment** 🎯 **New in v1.6.0** – support for dual assignment patterns with deferred validation
+- **Decorative Fixed Values** ✨ **New in v1.5.0** – automatic injection of decorative elements with fixed values
 - **AST Mobility** ⭐ **New in v1.0.0** – serialize/deserialize compiled expressions as JSON
 - Async evaluation pipeline with selective short‑circuiting
 - FLASH blocks & rules lowered into native evaluator stages
@@ -189,6 +193,7 @@ The fumifier function now accepts either:
 - `navigator?: FhirStructureNavigator` – required only if FLASH FHIR features are used.
 - `recover?: boolean` – attempt AST recovery on parse/resolution errors, collecting them as AST.errors instead of throwing. This is the recovery mode for parsing, not evaluation.
 - `astCache?: AstCacheInterface` – optional AST cache implementation for parsed expressions. Defaults to shared LRU cache.
+- `mappingCache?: MappingCacheInterface` – optional mapping repository for named expressions with `getKeys()` and `get(key)` methods.
 
 Compiled object methods:
 - `evaluate(input, bindings?, callback?) -> Promise<any>`
@@ -295,7 +300,107 @@ const compiled2 = await fumifier('Patient.name.given', { astCache: myAstCache })
 
 
 ---
-## 16. Contributing
+## 15. Mapping Repository 📚 **New in v1.8.0**
+Fumifier now supports a mapping repository feature that allows you to create reusable libraries of named expressions:
+
+```javascript
+// Define a mapping cache with reusable expressions
+const mappingCache = {
+  async getKeys() {
+    return ['greeting', 'formatPatient', 'validateData'];
+  },
+  async get(key) {
+    const mappings = {
+      'greeting': '"Hello, " & $',
+      'formatPatient': '{ "id": $.id, "fullName": $.name.given[0] & " " & $.name.family }',
+      'validateData': '$length($) > 0 ? $ : undefined'
+    };
+    return mappings[key];
+  }
+};
+
+// Use mappings in expressions
+const compiled = await fumifier('$greeting("World")', { mappingCache });
+const result = await compiled.evaluate({}); // "Hello, World"
+
+// FLASH expressions in mappings (requires navigator)
+const flashMappings = {
+  'createPatient': `
+InstanceOf: Patient
+* id = "patient-" & $uuid()
+* active = true
+  `
+};
+
+const flashCompiled = await fumifier('$createPatient($)', {
+  navigator,
+  mappingCache: { get: async (key) => flashMappings[key], getKeys: async () => Object.keys(flashMappings) }
+});
+```
+
+**Key Features:**
+- **Named Expressions**: Store and reuse complex transformations
+- **Bindings Support**: Pass parameters to mappings: `$myMapping(input, {"param": value})`
+- **FLASH Integration**: Use full FLASH syntax in mapping definitions
+- **Error Handling**: Comprehensive error reporting for mapping issues
+- **Caching**: Mappings are compiled and cached for performance
+- **Nested Calls**: Mappings can call other mappings
+- **Override Support**: Bindings can override mapping functions
+
+---
+## 16. Syntax Enhancements ✨ **New Features**
+
+### Trailing Semicolons (v1.7.0)
+FLASH rule assignments now support optional trailing semicolons for improved readability:
+
+```javascript
+// Both syntax styles work identically:
+const withSemicolons = await fumifier(`
+InstanceOf: Patient
+* id = "test-patient";
+* active = true;
+* gender = "male";
+`);
+
+const withoutSemicolons = await fumifier(`
+InstanceOf: Patient  
+* id = "test-patient"
+* active = true
+* gender = "male"
+`);
+```
+
+### Assume Block Feature (v1.3.0)
+Root-level expressions separated by semicolons are automatically treated as implicit blocks:
+
+```javascript
+// Multiple expressions at root level
+const compiled = await fumifier(`
+$x := 5;
+$y := 10;
+$x + $y
+`);
+
+const result = await compiled.evaluate({}); // 15
+```
+
+### Dual Assignment Patterns (v1.6.0)
+Support for dual assignment patterns with deferred mandatory validation:
+
+```javascript
+// Multiple rules targeting the same non-repeating parent element
+const compiled = await fumifier(`
+InstanceOf: MyPatientProfile
+* identifier[NonRepeatingSlice].use = "usual"
+* identifier[NonRepeatingSlice].value = "12345"
+`);
+```
+
+### Decorative Fixed Values (v1.5.0)
+Automatic injection of decorative elements (display text, units) with fixed values:
+
+---
+## 17. Contributing
 1. Fork & clone
 2. `npm install`
 3. `npm test` (runs lint + install FSH test package + coverage)
@@ -310,14 +415,14 @@ Security / PHI: Test data MUST NOT contain real patient information.
 
 
 ---
-## 18. License & Attribution
+## 19. License & Attribution
 GNU Affero General Public License v3.0 (see `LICENSE`). Portions adapted from / inspired by JSONata (MIT). Include original JSONata notices where required.
 FHIR® is the registered trademark of HL7 and is used with permission.
 
 If you redistribute modified sources, retain attribution headers and provide a NOTICE file summarizing third‑party attributions.
 
 ---
-## 19. Acknowledgements
+## 20. Acknowledgements
 - JSONata project for foundational expression evaluation concepts
 - HL7 & FHIR community
 - Contributors & early adopters of the FUME / FLASH ecosystem
