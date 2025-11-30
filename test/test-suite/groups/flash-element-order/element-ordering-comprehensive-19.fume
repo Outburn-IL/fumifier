@@ -1,0 +1,18 @@
+(
+  InstanceOf: Patient
+  * extension[ext-il-hmo].value.coding
+    * code = '103'
+      * extension
+        * url = 'http://example.com/code-ext'
+        * valueString = 'code-ext-value'
+    * id = 'coding-id'
+    * extension
+      * url = 'http://example.com/coding-ext'
+      * valueString = 'test'
+    * version.id = 'version-id'
+    * display
+      * id = 'display-id'
+      * extension
+        * url = 'http://example.com/display-ext'
+        * valueString = 'display-ext-value'
+).extension[0].valueCodeableConcept.coding[0] ~> $keys()

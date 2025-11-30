@@ -169,5 +169,53 @@
     "bindings": {},
     "result": "{\"resourceType\":\"Bundle\",\"type\":\"transaction\",\"_type\":{\"id\":\"bundle-type-id\"},\"entry\":[{\"link\":[{\"relation\":\"self\",\"url\":\"http://example.com/123\"}],\"fullUrl\":\"urn:uuid:bdc1be8b-8eaf-5b99-8db8-04deff133a69\",\"resource\":{\"resourceType\":\"Patient\",\"id\":\"example-patient\",\"gender\":\"male\"}}]}",
     "expr-file": "element-ordering-comprehensive-16.fume"
+  },
+  {
+    "skip": false,
+    "description": "Element ordering: Coding with context-dependent system injection and full FHIR properties (id, extension, version, userSelected) - should maintain proper FHIR order",
+    "data": null,
+    "result": [
+      "id",
+      "extension",
+      "system",
+      "version",
+      "code",
+      "display",
+      "userSelected"
+    ],
+    "expr-file": "element-ordering-comprehensive-17.fume"
+  },
+  {
+    "skip": false,
+    "description": "Element ordering: Quantity with context-dependent system injection and primitive extensions (_value, _unit) - should maintain proper FHIR order with underscore properties after base properties",
+    "data": null,
+    "result": [
+      "id",
+      "extension",
+      "value",
+      "_value",
+      "comparator",
+      "unit",
+      "_unit",
+      "system",
+      "code"
+    ],
+    "expr-file": "element-ordering-comprehensive-18.fume"
+  },
+  {
+    "skip": false,
+    "description": "Element ordering: Coding with context-dependent system injection and primitive extensions (_version, _code, _display) - should maintain proper FHIR order with underscore properties after base properties",
+    "data": null,
+    "result": [
+      "id",
+      "extension",
+      "system",
+      "_version",
+      "code",
+      "_code",
+      "display",
+      "_display"
+    ],
+    "expr-file": "element-ordering-comprehensive-19.fume"
   }
 ]
