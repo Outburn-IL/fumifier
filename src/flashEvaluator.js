@@ -240,18 +240,7 @@ function createFlashEvaluator(evaluate) {
     return false;
   }
 
-  /**
-   * Test if (system, code) pair exists in expansion dict
-   * @param {string} system System URI
-   * @param {string} code Code string
-   * @param {Object} expansionDict Expansion dictionary
-   * @returns {boolean} True if pair found
-   */
-  function valueInExpansionSystemCode(system, code, expansionDict) {
-    if (!system || !code) return false;
-    const sysDict = expansionDict[system];
-    return !!(sysDict && sysDict[code]);
-  }
+
 
   /**
    * Create structured binding validation error object
@@ -328,20 +317,60 @@ function createFlashEvaluator(evaluate) {
   }
 
   /**
-   * Validate complex Coding/Quantity/CodeableConcept binding
+   * Find a concept in expansion by system and code
+   * @param {string} system System URI
+   * @param {string} code Code string
+   * @param {Object} expansionDict Expansion dictionary
+   * @returns {Object|null} The concept object or null if not found
+   */
+  function findConceptInExpansion(system, code, expansionDict) {
+    if (!system || !code || !expansionDict) return null;
+    const sysDict = expansionDict[system];
+    return (sysDict && sysDict[code]) || null;
+  }
+
+  /**
+   * Find a concept in expansion by code only (across all systems)
+   * @param {string} code Code string
+   * @param {Object} expansionDict Expansion dictionary
+   * @returns {Object|null} The concept object if found in exactly one system, null otherwise
+   */
+  function findConceptByCode(code, expansionDict) {
+    if (!code || !expansionDict) return null;
+    let foundConcept = null;
+    let matchCount = 0;
+
+    for (const system of Object.keys(expansionDict)) {
+      const sysDict = expansionDict[system];
+      if (sysDict && sysDict[code]) {
+        foundConcept = sysDict[code];
+        matchCount++;
+        if (matchCount > 1) return null; // Multiple matches, ambiguous
+      }
+    }
+
+    return matchCount === 1 ? foundConcept : null;
+  }
+
+  /**
+   * Process and validate complex Coding/Quantity/CodeableConcept binding with system/display injection
    * @param {string} kindCode Element type code (Coding|Quantity|CodeableConcept)
    * @param {Object} valueObj Evaluated value object (intermediate with primitives inside)
    * @param {Object} elementDefinition ElementDefinition
    * @param {Object} expr AST node
    * @param {Object} environment Execution environment
+   * @returns {boolean} True if valueObj was modified (injection occurred)
    */
-  function validateComplexCodingLike(kindCode, valueObj, elementDefinition, expr, environment) {
-    if (!elementDefinition.__bindingStrength) return;
+  function processCodingLike(kindCode, valueObj, elementDefinition, expr, environment) {
     const strength = elementDefinition.__bindingStrength;
+    if (!strength) return false; // no binding
+
     const policy = createPolicy(environment);
-    // Representative codes for inhibition decision use same bands: required -> F5120, extensible -> F5340
-    const representativeCode = strength === 'required' ? 'F5120' : 'F5340';
-    if (!policy.shouldValidate(representativeCode)) return; // skip entirely
+    // Representative codes for inhibition decision - we always use required level for injection
+    // since injection is performance-wise equivalent to validation
+    const representativeCode = 'F5120'; // Use required validation threshold for all injection decisions
+    if (!policy.shouldValidate(representativeCode)) return false; // skip entirely - both validation AND injection
+
     const mode = elementDefinition.__vsExpansionMode;
     const expansions = getResolvedValueSetDict(environment);
     const expansionDict = elementDefinition.__vsRefKey ? expansions[elementDefinition.__vsRefKey] : undefined;
@@ -363,46 +392,122 @@ function createFlashEvaluator(evaluate) {
       if (policy.enforce(err)) throw err; // honor throwLevel
     }
 
+
+
     if (mode === 'error' || mode === 'lazy') {
+      // Can't do injection without expansion, only validation errors
       let errCode;
       if (mode === 'error') {
         errCode = strength === 'required' ? 'F5310' : 'F5330';
       } else { // lazy
         errCode = strength === 'required' ? 'F5311' : 'F5331';
       }
-      if (!policy.shouldValidate(errCode)) return; // skip entirely if inhibited for this specific code
-      enforce(errCode, { elementType: codeMap[kindCode].elementType });
-      return;
+      if (policy.shouldValidate(errCode)) {
+        enforce(errCode, { elementType: codeMap[kindCode].elementType });
+      }
+      return false;
     }
 
+    let injectionOccurred = false;
+
     if (kindCode === 'Coding' || kindCode === 'Quantity') {
-      const rawSystem = valueObj?.system;
-      const rawCode = valueObj?.code;
-      const system = (rawSystem && typeof rawSystem === 'object' && Object.prototype.hasOwnProperty.call(rawSystem, 'value')) ? rawSystem.value : rawSystem;
-      const code = (rawCode && typeof rawCode === 'object' && Object.prototype.hasOwnProperty.call(rawCode, 'value')) ? rawCode.value : rawCode;
-      const pairValid = system && code && valueInExpansionSystemCode(system, code, expansionDict || {});
+      const system = valueObj?.system;
+      const code = valueObj?.code;
+      const display = valueObj?.display;
+      const unit = valueObj?.unit;
+
+      let concept = null;
+      let validPair = false;
+
+      // Try to find concept and validate
+      if (system && code) {
+        concept = findConceptInExpansion(system, code, expansionDict || {});
+        validPair = !!concept;
+      } else if (code && !system) {
+        // Try system injection - find by code only if unambiguous
+        concept = findConceptByCode(code, expansionDict || {});
+        if (concept) {
+          // Inject system
+          valueObj.system = concept.system;
+          injectionOccurred = true;
+          validPair = true;
+        }
+      }
+
+      // Inject display/unit if concept was found and display/unit not already set
+      if (concept && validPair) {
+        const displayField = kindCode === 'Quantity' ? 'unit' : 'display';
+        const currentDisplayValue = kindCode === 'Quantity' ? unit : display;
+
+        // Only inject if:
+        // 1. No current display/unit value (not explicitly assigned by user)
+        // 2. Concept has a display value from ValueSet expansion
+        if (!currentDisplayValue && concept.display) {
+          valueObj[displayField] = concept.display;
+          injectionOccurred = true;
+        }
+      }      // Validation for required/extensible bindings only
       if (strength === 'required') {
-        if (!pairValid) enforce(codeMap[kindCode].required.full, { system, code });
+        if (system && code && !validPair) {
+          enforce(codeMap[kindCode].required.full, { system, code });
+        }
       } else if (strength === 'extensible') {
-        if (system && code && !pairValid) enforce(codeMap[kindCode].extensible.full, { system, code });
+        if (system && code && !validPair) {
+          enforce(codeMap[kindCode].extensible.full, { system, code });
+        }
       }
     } else if (kindCode === 'CodeableConcept') {
       const codings = Array.isArray(valueObj?.coding) ? valueObj.coding : [];
       let anyValid = false;
+
       for (const c of codings) {
-        const rawSystem = c?.system;
-        const rawCode = c?.code;
-        const system = (rawSystem && typeof rawSystem === 'object' && Object.prototype.hasOwnProperty.call(rawSystem, 'value')) ? rawSystem.value : rawSystem;
-        const code = (rawCode && typeof rawCode === 'object' && Object.prototype.hasOwnProperty.call(rawCode, 'value')) ? rawCode.value : rawCode;
-        if (system && code && valueInExpansionSystemCode(system, code, expansionDict || {})) { anyValid = true; break; }
+        const system = c?.system;
+        const code = c?.code;
+        const display = c?.display;
+
+        let concept = null;
+        let validPair = false;
+
+        // Try to find concept and validate
+        if (system && code) {
+          concept = findConceptInExpansion(system, code, expansionDict || {});
+          validPair = !!concept;
+          if (validPair) anyValid = true;
+        } else if (code && !system) {
+          // Try system injection - find by code only if unambiguous
+          concept = findConceptByCode(code, expansionDict || {});
+          if (concept) {
+            // Inject system
+            c.system = concept.system;
+            injectionOccurred = true;
+            validPair = true;
+            anyValid = true;
+          }
+        }
+
+        // Inject display if concept was found and display not already set
+        if (concept && validPair && !display && concept.display) {
+          c.display = concept.display;
+          injectionOccurred = true;
+        }
       }
+
+      // Validation for required/extensible bindings only
       if (strength === 'required') {
-        if (!anyValid) enforce(codeMap.CodeableConcept.required.full, { codingCount: codings.length });
+        if (!anyValid && codings.length > 0) {
+          enforce(codeMap.CodeableConcept.required.full, { codingCount: codings.length });
+        }
       } else if (strength === 'extensible') {
-        if (codings.length > 0 && !anyValid) enforce(codeMap.CodeableConcept.extensible.full, { codingCount: codings.length });
+        if (codings.length > 0 && !anyValid) {
+          enforce(codeMap.CodeableConcept.extensible.full, { codingCount: codings.length });
+        }
       }
     }
+
+    return injectionOccurred;
   }
+
+
 
   /**
    * Handle inline array assignments for complex types and resources
@@ -924,13 +1029,11 @@ function createFlashEvaluator(evaluate) {
         if (elDef) {
           const typeCode = elDef.__fhirTypeCode;
           if (['Coding','Quantity','CodeableConcept'].includes(typeCode)) {
-            validateComplexCodingLike(typeCode, result.value, elDef, expr, environment);
+            processCodingLike(typeCode, result.value, elDef, expr, environment);
           }
         }
       }
-    }
-
-    // flashblock result finalization
+    }    // flashblock result finalization
     if (expr.isFlashBlock) {
       if (Object.keys(result).length === 0 || (Object.keys(result).length === 1 && result.resourceType)) {
         // if the result is empty or has only resourceType, return undefined
