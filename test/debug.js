@@ -30,16 +30,13 @@ void async function () {
 // * identifier[TestSlice].use = 'official'
 
 
-// InstanceOf: il-core-patient
-// * gender = 'male'
-// * birthDate = '1980-01-01'
-// * identifier[il-id].value = '123456789'
-// * name
-//   * family = 'Doe'
-//   * given = ['John', 'A.']
-// * extension[hmo].value.coding
-//   * code = 'UNK'
-//   * system = 'http://terminology.hl7.org/CodeSystem/v3-NullFlavor'
+
+InstanceOf: il-core-patient
+* birthDate = '1980-01-01'
+* identifier[il-id].value = '123456789'
+* name
+  * family = 'Doe'
+  * given = ['John', 'A.']
 
 
 // InstanceOf: TestSliceValidation
@@ -71,14 +68,22 @@ void async function () {
 // * component[SystolicBP].value.value = '120.00'
 // * component[DiastolicBP].value.value = '80.00'
 
-InstanceOf: Patient
-* extension[ext-il-hmo].value.coding
-  * code = '101'
-    * id = 'code-id-123'
-  * display = 'Custom HMO Name'
-    * extension
-      * url = 'http://example.org/display-ext'
-      * valueString = 'additional info'
+  // * extension[ext-il-hmo].value.coding
+  //   * code = '101-nope'
+  // * display = 'Custom HMO Name'
+
+
+// InstanceOf: ILHDPCondition
+// * identifier.value = 'COND-001'
+// * category.coding
+//   * system = "http://terminology.hl7.org/CodeSystem/condition-category"
+//   * code = "encounter-diagnosis"
+//   * display = "Encounter Diagnosis"
+// * code.text = "Hypertension"
+// * subject.reference = "Patient/12345"
+// * recordedDate = "2023-01-15T08:00:00Z"
+// * recorder.display = "Dr. Alice Smith"
+// * severity.coding
 `
 ;
 

@@ -234,7 +234,7 @@ const errorCodes = {
   "F5112": "The value {{value}} is invalid for FHIR element {{fhirElement}} (type: {{fhirType}}) in {{instanceOf}}. Strings must contain at least one non-whitespace character and may only include TAB, LF, CR, or Unicode characters U+0020 and above (excluding U+0080..U+009F).",
   "F5113": "The value {{value}} is invalid for FHIR element {{fhirElement}} (type: {{fhirType}}) in {{instanceOf}}. Codes must have no leading/trailing whitespace, no consecutive spaces, and may only contain space (U+0020) or NBSP (U+00A0) as internal whitespace.",
   "F5114": "The value {{value}} is invalid for FHIR element {{fhirElement}} (type: {{fhirType}}) in {{instanceOf}}. String length ({{actualLength}}) exceeds maximum allowed length of {{maxLength}}.",
-  "F5130": "The FHIR element {{fhirElement}} is required in {{fhirParent}}, but no value was provided.",
+  "F5130": "The FHIR element {{fhirElement}} is mandatory in {{fhirParent}} (minimum {{{cardinalityMin}}}), but no value was provided.",
   "F3003": "Could not find ElementDefinition for {{fhirElement}} in {{instanceOf}}. This compiled FUME expression may be corrupted and needs to be parsed again.",
   "F3004": "Failed to determine the structural kind of {{fhirElement}} in {{instanceOf}}. This compiled FUME expression may be corrupted and needs to be parsed again.",
   "F3005": "Failed to determine the JSON element name of {{fhirElement}} in {{instanceOf}}. This compiled FUME expression may be corrupted and needs to be parsed again.",

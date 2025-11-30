@@ -1,0 +1,6 @@
+InstanceOf: il-core-patient
+* birthDate = '1980-01-01'
+* identifier[il-id].value = '123456789'
+* name
+  * family = 'Doe'
+  * given = ['John', 'A.']

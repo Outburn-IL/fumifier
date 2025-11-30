@@ -282,12 +282,11 @@ function createFlashEvaluator(evaluate) {
     const typeCode = elementDefinition.__fhirTypeCode;
     if (!['string','uri','code'].includes(typeCode)) return; // only these primitives
     const valObj = resultObj.value; // FHIR primitive intermediate (object with value key)
-    const val = valObj ? valObj.value : undefined;
+    const val = valObj?.value;
+    if (!val) return; // no value to validate
     const mode = elementDefinition.__vsExpansionMode; // full | error | lazy
     const expansions = getResolvedValueSetDict(environment);
     const expansionDict = elementDefinition.__vsRefKey ? expansions[elementDefinition.__vsRefKey] : undefined;
-
-    const hasValue = !(val === undefined || val === null || val === '');
 
     const codeMap = {
       required: { full: 'F5120', expansionError: 'F5310', expansionLazy: 'F5311' },
@@ -304,12 +303,12 @@ function createFlashEvaluator(evaluate) {
     }
 
     if (strength === 'required') {
-      if (!hasValue || !valueInExpansionPrimitive(val, expansionDict || {})) {
+      if (!valueInExpansionPrimitive(val, expansionDict || {})) {
         const err = createBindingError(codeMap.required.full, expr, elementDefinition, { value: val });
         if (policy.enforce(err)) throw err;
       }
     } else if (strength === 'extensible') {
-      if (hasValue && !valueInExpansionPrimitive(val, expansionDict || {})) {
+      if (!valueInExpansionPrimitive(val, expansionDict || {})) {
         const err = createBindingError(codeMap.extensible.full, expr, elementDefinition, { value: val });
         if (policy.enforce(err)) throw err;
       }
@@ -458,6 +457,9 @@ function createFlashEvaluator(evaluate) {
       const display = valueObj?.display;
       const unit = valueObj?.unit;
 
+      // Skip validation and injection if code is undefined - let mandatory validation handle it
+      if (!code) return false;
+
       let concept = null;
       let validPair = false;
 
@@ -512,6 +514,9 @@ function createFlashEvaluator(evaluate) {
         const system = c?.system;
         const code = c?.code;
         const display = c?.display;
+
+        // Skip this coding if code is undefined - let mandatory validation handle it
+        if (!code) continue;
 
         let concept = null;
         let validPair = false;

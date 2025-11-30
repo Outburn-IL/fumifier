@@ -19,5 +19,29 @@
     "data": null,
     "skip": false,
     "description": "Instance of resource with valid id but required element missing (Basic.code) - inhibited"
+  },
+  {
+    "skip": false,
+    "description": "Instance of profile missing mandatory primitive element with required binding (il-core-patient.gender) - should throw F5130 and not F5120",
+    "data": null,
+    "bindings": {},
+    "code": "F5130",
+    "expr-file": "flash-eval-error026.fume"
+  },
+  {
+    "skip": false,
+    "description": "Instance of profile missing mandatory primitive element with required binding (il-core-patient.gender) inside a slice - should throw F5130 and not F5120",
+    "data": null,
+    "bindings": {},
+    "code": "F5130",
+    "expr-file": "flash-eval-error027.fume"
+  },
+  {
+    "skip": false,
+    "description": "Mandatory primitive element with required binding inside a slice (il-core-patient.identifier[il-id].system) with invalid value - should throw F5120 and not F5130",
+    "data": null,
+    "bindings": {},
+    "code": "F5120",
+    "expr-file": "flash-eval-error028.fume"
   }
 ]
