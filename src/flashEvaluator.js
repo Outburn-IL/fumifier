@@ -362,8 +362,8 @@ function createFlashEvaluator(evaluate) {
     if (!obj || typeof obj !== 'object') return;
 
     const elementOrder = dataType === 'Quantity' ?
-      ['value', 'comparator', 'unit', 'system', 'code'] :
-      ['system', 'version', 'code', 'display', 'userSelected']; // Coding
+      ['id', 'extension', 'value', 'comparator', 'unit', 'system', 'code'] :
+      ['id', 'extension', 'system', 'version', 'code', 'display', 'userSelected']; // Coding
 
     const reordered = {};
 
@@ -375,8 +375,9 @@ function createFlashEvaluator(evaluate) {
       }
 
       // Add the corresponding _property if it exists (for FHIR primitive extensions)
+      // Note: id and extension cannot have _ prefixed siblings since they are system/complex types
       const underscoreProp = `_${prop}`;
-      if (Object.prototype.hasOwnProperty.call(obj, underscoreProp)) {
+      if (prop !== 'id' && prop !== 'extension' && Object.prototype.hasOwnProperty.call(obj, underscoreProp)) {
         reordered[underscoreProp] = obj[underscoreProp];
       }
     }
