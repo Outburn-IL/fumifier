@@ -47,6 +47,7 @@ export default function validateMandatoryChildren(result, mandatories, expr, env
       const err = FlashErrorGenerator.createFhirContextError("F5130", expr, {
         fhirParent: parentPath.replace('::', '/'),
         fhirElement: mandatory.__flashPathRefKey.split('::')[1],
+        cardinalityMin: mandatory.min
       });
       if (policy.enforce(err)) {
         throw err;
