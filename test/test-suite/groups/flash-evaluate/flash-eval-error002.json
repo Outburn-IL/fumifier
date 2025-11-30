@@ -38,7 +38,7 @@
   },
   {
     "skip": false,
-    "description": "Mandatory primitive element with required binding (il-core-patient.gender) inside a slice with invalid value - should throw F5120 and not F5130",
+    "description": "Mandatory primitive element with required binding inside a slice (il-core-patient.identifier[il-id].system) with invalid value - should throw F5120 and not F5130",
     "data": null,
     "bindings": {},
     "code": "F5120",
