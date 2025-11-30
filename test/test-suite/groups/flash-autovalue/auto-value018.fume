@@ -1,0 +1,4 @@
+InstanceOf: Patient
+* maritalStatus.coding
+  * code = 'M'
+  * display = 'Married (assigned by user)'

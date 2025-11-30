@@ -1,0 +1,17 @@
+{
+  "description": "System injection when code+display provided by user (marital status 'M')",
+  "data": null,
+  "result": {
+    "resourceType": "Patient",
+    "maritalStatus": {
+      "coding": [
+        {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-MaritalStatus",
+          "code": "M",
+          "display": "Married (assigned by user)"
+        }
+      ]
+    }
+  },
+  "expr-file": "auto-value018.fume"
+}
