@@ -1,0 +1,4 @@
+InstanceOf: Patient
+* maritalStatus.coding
+  * code = 'M'
+  * system = 'http://example.org/wrong-system'

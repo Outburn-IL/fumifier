@@ -1,0 +1,2 @@
+InstanceOf: Patient
+* maritalStatus.coding.code = 'INVALID_CODE'

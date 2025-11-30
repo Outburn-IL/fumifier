@@ -1,0 +1,17 @@
+{
+  "description": "No injection when user provides all fields (system, code, display)",
+  "data": null,
+  "result": {
+    "resourceType": "Patient",
+    "maritalStatus": {
+      "coding": [
+        {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-MaritalStatus",
+          "code": "M",
+          "display": "Custom Display"
+        }
+      ]
+    }
+  },
+  "expr-file": "auto-value022.fume"
+}

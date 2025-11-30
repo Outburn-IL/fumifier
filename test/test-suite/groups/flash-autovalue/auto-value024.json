@@ -1,0 +1,22 @@
+{
+  "description": "System injection when code+display provided by user (HMO extension - preserves custom display)",
+  "data": null,
+  "result": {
+    "resourceType": "Patient",
+    "extension": [
+      {
+        "url": "http://fhir.health.gov.il/StructureDefinition/ext-il-hmo",
+        "valueCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://fhir.health.gov.il/cs/paying-entity-moh",
+              "code": "101",
+              "display": "Custom HMO Name"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expr-file": "auto-value024.fume"
+}

@@ -1,0 +1,4 @@
+InstanceOf: Patient
+* extension[ext-il-hmo].value.coding
+  * code = '101'
+  * display = 'Custom HMO Name'

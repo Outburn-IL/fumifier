@@ -64,13 +64,17 @@ void async function () {
 
 
 
-InstanceOf: bp
-* status = 'final'
-* subject.reference = 'Patient/123'
-* effectiveDateTime = '2023-10-01T00:00:00Z'
-* component[SystolicBP].value.value = '120.00'
-* component[DiastolicBP].value.value = '80.00'
+// InstanceOf: bp
+// * status = 'final'
+// * subject.reference = 'Patient/123'
+// * effectiveDateTime = '2023-10-01T00:00:00Z'
+// * component[SystolicBP].value.value = '120.00'
+// * component[DiastolicBP].value.value = '80.00'
 
+InstanceOf: Patient
+* extension[ext-il-hmo].value.coding
+  * code = '101'
+  * display = 'Custom HMO Name'
 `
 ;
 

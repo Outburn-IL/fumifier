@@ -1,0 +1,16 @@
+{
+  "description": "No display injection when system+code pair not found in ValueSet",
+  "data": null,
+  "result": {
+    "resourceType": "Patient",
+    "maritalStatus": {
+      "coding": [
+        {
+          "system": "http://example.org/wrong-system",
+          "code": "M"
+        }
+      ]
+    }
+  },
+  "expr-file": "auto-value023.fume"
+}

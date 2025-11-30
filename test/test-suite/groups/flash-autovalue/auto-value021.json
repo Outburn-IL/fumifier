@@ -1,0 +1,15 @@
+{
+  "description": "No injection when code not found in ValueSet",
+  "data": null,
+  "result": {
+    "resourceType": "Patient",
+    "maritalStatus": {
+      "coding": [
+        {
+          "code": "INVALID_CODE"
+        }
+      ]
+    }
+  },
+  "expr-file": "auto-value021.fume"
+}
