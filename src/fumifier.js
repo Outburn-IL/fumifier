@@ -37,6 +37,80 @@ import createFlashEvaluator from './flashEvaluator.js';
 import { createDefaultLogger, SYM, decide, push, thresholds, severityFromCode, LEVELS } from './utils/diagnostics.js';
 
 /**
+ * FumifierError class - represents errors thrown by Fumifier during parsing or evaluation
+ * Equivalent to JsonataError from the original JSONata library
+ */
+class FumifierError extends Error {
+  /**
+   * Create a FumifierError
+   * @param {string} code - Error code (e.g., "S0201", "F5130", "D1009")
+   * @param {string} [message] - Error message
+   * @param {Object} [properties] - Additional error properties
+   */
+  constructor(code, message = '', properties = {}) {
+    super(message);
+    this.name = 'FumifierError';
+
+    /** @type {string} Error code (e.g., "S0201", "F5130", "D1009") */
+    this.code = code;
+
+    /** @type {number} [position] Character position in the expression where the error occurred */
+    this.position = properties.position;
+
+    /** @type {number} [start] Start position for multi-character tokens */
+    this.start = properties.start;
+
+    /** @type {number} [line] Line number where the error occurred */
+    this.line = properties.line;
+
+    /** @type {string} [token] Token that caused the error */
+    this.token = properties.token;
+
+    /** @type {any} [value] Value that caused the error (for validation errors) */
+    this.value = properties.value;
+
+    /** @type {string} [valueType] Type of the value that caused the error */
+    this.valueType = properties.valueType;
+
+    /** @type {string} [instanceOf] FHIR instance type for FLASH-related errors */
+    this.instanceOf = properties.instanceOf;
+
+    /** @type {string} [fhirElement] FHIR element path for FLASH-related errors */
+    this.fhirElement = properties.fhirElement;
+
+    /** @type {string} [fhirParent] FHIR parent path for context errors */
+    this.fhirParent = properties.fhirParent;
+
+    /** @type {string} [executionId] Execution ID for tracing purposes */
+    this.executionId = properties.executionId;
+
+    /** @type {any} [flashDiagnostics] FLASH diagnostics collected during evaluation */
+    this.flashDiagnostics = properties.flashDiagnostics;
+
+    /** @type {any} [sourceError] Source error for wrapped errors */
+    this.sourceError = properties.sourceError;
+
+    /** @type {string} [sourceErrorCode] Source error code for wrapped errors */
+    this.sourceErrorCode = properties.sourceErrorCode;
+
+    /** @type {string} [sourceMessage] Source error message for wrapped errors */
+    this.sourceMessage = properties.sourceMessage;
+
+    // Copy any other additional properties
+    Object.keys(properties).forEach(key => {
+      if (this[key] === undefined && properties[key] !== undefined) {
+        this[key] = properties[key];
+      }
+    });
+
+    // Ensure we have a stack trace
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, FumifierError);
+    }
+  }
+}
+
+/**
  * @typedef {import('@outburn/structure-navigator').FhirStructureNavigator} FhirStructureNavigator
  */
 
@@ -52,6 +126,7 @@ import { createDefaultLogger, SYM, decide, push, thresholds, severityFromCode, L
  * @property {(key: string) => Promise<string>} get - Get a mapping expression by key/name.
  */
 
+
 /**
  * @typedef FumifierOptions
  * @property {boolean} [recover] Attempt to recover on parse error.
@@ -62,7 +137,7 @@ import { createDefaultLogger, SYM, decide, push, thresholds, severityFromCode, L
 
 /**
  * @typedef FumifierCompiled
- * @property {(input: any, bindings?: Record<string, any>, callback?: (err: any, resp: any) => void) => Promise<any>} evaluate
+ * @property {(input: any, bindings?: Record<string, any>, callback?: (err: FumifierError | null, resp: any) => void) => Promise<any>} evaluate
  *   Evaluate the compiled expression against input. If provided, callback will be called with (err, result).
  * @property {(input: any, bindings?: Record<string, any>) => Promise<{ ok: boolean, status: number, result: any, diagnostics: any }>} evaluateVerbose
  *   Like evaluate(), but never throws for handled errors; returns a report with diagnostics and HTTP-like status.
@@ -258,14 +333,12 @@ var fumifier = (function() {
         } else if (isNumeric(result)) {
           result = -result;
         } else {
-          throw {
-            code: "D1002",
-            stack: (new Error()).stack,
+          throw new FumifierError("D1002", undefined, {
             position: expr.position,
             start: expr.start,
             token: expr.value,
             value: result
-          };
+          });
         }
         break;
       case '[':
@@ -792,11 +865,9 @@ var fumifier = (function() {
       };
     }
     if (typeof rhs !== 'undefined' && !isNumeric(rhs)) {
-      throw {
-        code: "T2002",
-        stack: (new Error()).stack,
+      throw new FumifierError("T2002", undefined, {
         value: rhs
-      };
+      });
     }
 
     if (typeof lhs === 'undefined' || typeof rhs === 'undefined') {
@@ -1014,13 +1085,11 @@ var fumifier = (function() {
         var key = await evaluate(pair[0], reduce ? item['@'] : item, env);
         // key has to be a string
         if (typeof  key !== 'string' && key !== undefined) {
-          throw {
-            code: "T1003",
-            stack: (new Error()).stack,
+          throw new FumifierError("T1003", undefined, {
             position: expr.position,
             start: expr.start,
             value: key
-          };
+          });
         }
 
         if (key !== undefined) {
@@ -2586,3 +2655,4 @@ var fumifier = (function() {
 })();
 
 export default fumifier;
+export { FumifierError };
