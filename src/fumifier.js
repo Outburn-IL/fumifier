@@ -23,7 +23,7 @@ import fn from './utils/functions.js';
 import utils from './utils/utils.js';
 import parser from './parser.js';
 import resolveDefinitions from './utils/resolveDefinitions.js';
-import { createExpressionIdentity, AstCacheInterface } from './utils/cacheUtils.js';
+import { createExpressionIdentity, AstCacheInterface as AstCacheImpl } from './utils/cacheUtils.js';
 import { getDefaultCache } from './utils/moduleCache.js';
 
 // Import boolize directly since it's a simple utility function
@@ -2165,7 +2165,7 @@ var fumifier = (function() {
 
     const env = this.environment;
     const navigator = env && env.lookup(Symbol.for('fumifier.__navigator'));
-    const astCacheImpl = env && env.lookup(Symbol.for('fumifier.__astCacheImpl')) || new AstCacheInterface(getDefaultCache());
+    const astCacheImpl = env && env.lookup(Symbol.for('fumifier.__astCacheImpl')) || new AstCacheImpl(getDefaultCache());
     const compiledFhirRegex = env && env.lookup(Symbol.for('fumifier.__compiledFhirRegex_OBJ'));
 
     let ast;
@@ -2266,7 +2266,7 @@ var fumifier = (function() {
 
       // Parse and cache the mapping expression (Note: mappings always use recover=false like $eval)
       const navigator = evalEnv && evalEnv.lookup(Symbol.for('fumifier.__navigator'));
-      const astCacheImpl = evalEnv && evalEnv.lookup(Symbol.for('fumifier.__astCacheImpl')) || new AstCacheInterface(getDefaultCache());
+      const astCacheImpl = evalEnv && evalEnv.lookup(Symbol.for('fumifier.__astCacheImpl')) || new AstCacheImpl(getDefaultCache());
       const compiledFhirRegex = evalEnv && evalEnv.lookup(Symbol.for('fumifier.__compiledFhirRegex_OBJ'));
 
       let ast;
@@ -2405,7 +2405,7 @@ var fumifier = (function() {
     var compiledFhirRegex = {};
 
     // Get AST cache implementation - use external AST cache if provided, otherwise use default
-    const astCacheImpl = (options && options.astCache) ? new AstCacheInterface(options.astCache) : new AstCacheInterface(getDefaultCache());
+    const astCacheImpl = (options && options.astCache) ? new AstCacheImpl(options.astCache) : new AstCacheImpl(getDefaultCache());
 
     try {
       if (typeof expr === 'string') {
