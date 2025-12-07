@@ -1,0 +1,7 @@
+InstanceOf: Patient
+* communication
+  * language
+    * coding
+      * system = 'http://acme.org.il/code/lang'
+      * code = 'fr'
+    * coding

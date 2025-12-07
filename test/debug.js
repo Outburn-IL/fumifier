@@ -45,14 +45,14 @@ void async function () {
 // * severity.coding.code = '255604002');
 // $trace('additional info');
 
-InstanceOf: il-core-patient
-* identifier[il-id].value = '123'
-* name
-  * given = 'John'
-  * family = 'Doe'
-* gender = 'unknown'
-* birthDate = '1985'
-* address.extension[language].value = 'en'
+// InstanceOf: il-core-patient
+// * identifier[il-id].value = '123'
+// * name
+//   * given = 'John'
+//   * family = 'Doe'
+// * gender = 'unknown'
+// * birthDate = '1985'
+// * address.extension[language].value = 'en'
 
 
 // * maritalStatus.coding.code = 'UNK'
@@ -119,6 +119,26 @@ InstanceOf: il-core-patient
 // * recordedDate = '2024-06-01T10:00:00Z'
 // * recorder.display = 'Dr. Jane Smith'
 // * severity.coding.code = '255604002'
+
+
+[(
+  InstanceOf: Patient
+  * communication
+    * language
+      * coding
+        * system = 'http://acme.org.il/code/lang'
+        * code = 'en'
+      * coding
+        * system = null
+),(
+  InstanceOf: Patient
+  * communication
+    * language
+      * coding
+        * system = 'http://acme.org.il/code/lang'
+        * code = 'fr'
+      * coding
+)]
 `
 ;
 

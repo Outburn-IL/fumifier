@@ -170,6 +170,30 @@ class ResultProcessor {
       finalValue.value = [finalValue.value[finalValue.value.length - 1]];
     }
 
+    // Filter out empty objects from arrays before assignment
+    if (Array.isArray(finalValue.value)) {
+      finalValue.value = finalValue.value.filter(item => {
+        // Keep the item if it's not an object, or if it's an object with meaningful content
+        if (typeof item !== 'object' || item === null) {
+          return true; // Keep non-objects and null values
+        }
+        // For objects, check if they have any non-undefined, non-null properties
+        const keys = Object.keys(item);
+        return keys.length > 0 && keys.some(key => item[key] !== undefined && item[key] !== null);
+      });
+
+      // If the array is now empty after filtering, don't assign it
+      if (finalValue.value.length === 0) {
+        return;
+      }
+    } else if (typeof finalValue.value === 'object' && finalValue.value !== null) {
+      // For single objects, check if they're empty
+      const keys = Object.keys(finalValue.value);
+      if (keys.length === 0 || keys.every(key => finalValue.value[key] === undefined || finalValue.value[key] === null)) {
+        return; // Don't assign empty objects
+      }
+    }
+
     if (typeof finalValue.value !== 'undefined' && (typeof finalValue.value === 'boolean' || boolize(finalValue.value))) {
       result[finalValue.name] = finalValue.value;
     }

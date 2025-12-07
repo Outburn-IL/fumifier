@@ -1,0 +1,22 @@
+{
+  "skip": false,
+  "description": "Empty coding object should be omitted when no child rules are specified",
+  "data": null,
+  "bindings": {},
+  "result": {
+    "resourceType": "Patient",
+    "communication": [
+      {
+        "language": {
+          "coding": [
+            {
+              "system": "http://acme.org.il/code/lang",
+              "code": "fr"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expr-file": "flash-eval036.fume"
+}

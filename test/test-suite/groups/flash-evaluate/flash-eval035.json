@@ -1,0 +1,22 @@
+{
+  "skip": false,
+  "description": "Empty coding object should be omitted when system is set to null",
+  "data": null,
+  "bindings": {},
+  "result": {
+    "resourceType": "Patient",
+    "communication": [
+      {
+        "language": {
+          "coding": [
+            {
+              "system": "http://acme.org.il/code/lang",
+              "code": "en"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expr-file": "flash-eval035.fume"
+}
