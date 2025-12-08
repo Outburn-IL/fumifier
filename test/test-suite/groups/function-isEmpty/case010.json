@@ -1,0 +1,6 @@
+{
+    "expr": "$isEmpty([`not-defined-field`])",
+    "data": null,
+    "bindings": {},
+    "result": true
+}

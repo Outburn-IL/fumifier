@@ -1,0 +1,6 @@
+{
+    "expr": "$isEmpty([null, ''])",
+    "data": null,
+    "bindings": {},
+    "result": true
+}

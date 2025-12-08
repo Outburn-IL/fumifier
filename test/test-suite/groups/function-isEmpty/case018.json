@@ -1,0 +1,6 @@
+{
+    "expr": "$isEmpty([null, undefined, '', {}, [], {'a': {'b': '', 'c': []}}])",
+    "dataset": "dataset5",
+    "bindings": {},
+    "result": true
+}

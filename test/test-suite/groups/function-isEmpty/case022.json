@@ -1,0 +1,6 @@
+{
+    "expr": "(42).$isEmpty()",
+    "dataset": "dataset5",
+    "bindings": {},
+    "result": false
+}
