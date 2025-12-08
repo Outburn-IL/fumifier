@@ -429,7 +429,7 @@ const functions = (() => {
     }
 
     // Handle functions - considered non-empty values
-    if (typeof value === 'function') {
+    if (isFunction(value)) {
       return false;
     }
 
