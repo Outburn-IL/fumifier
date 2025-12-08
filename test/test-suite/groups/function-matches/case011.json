@@ -1,0 +1,6 @@
+{
+    "expr": "$matches('', 'anything')",
+    "data": null,
+    "bindings": {},
+    "undefinedResult": true
+}

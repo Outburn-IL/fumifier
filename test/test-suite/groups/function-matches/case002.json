@@ -1,0 +1,6 @@
+{
+    "expr": "('N8000123123').$matches('N[0-9]{8}')",
+    "data": null,
+    "bindings": {},
+    "result": true
+}

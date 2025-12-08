@@ -1,0 +1,6 @@
+{
+    "expr": "('http://fhir.org/guides/cqf/common/Library/FHIR-ModelInfo|4.0.1').$matches('Library')",
+    "data": null,
+    "bindings": {},
+    "result": true
+}

@@ -1,0 +1,6 @@
+{
+    "expr": "$matches('test', '*invalid')",
+    "data": null,
+    "bindings": {},
+    "code": "D3500"
+}

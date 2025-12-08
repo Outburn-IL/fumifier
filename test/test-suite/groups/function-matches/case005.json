@@ -1,0 +1,6 @@
+{
+    "expr": "$matches('test@example.com', '[a-z]+@[a-z]+\\\\.[a-z]+')",
+    "data": null,
+    "bindings": {},
+    "result": true
+}

@@ -1,0 +1,6 @@
+{
+    "expr": "$matches('HelloWorld', 'Hello', ['full'])",
+    "data": null,
+    "bindings": {},
+    "result": false
+}
