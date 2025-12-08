@@ -2507,6 +2507,54 @@ const functions = (() => {
   }
 
   /**
+     * Selects key/value pairs from an object where the key matches any of the strings in the provided array
+     *
+     * @param {object} arg - the object to filter
+     * @param {string|Array} keysToSelect - string or array of strings specifying keys to select
+     * @returns {object} - object with only the specified keys included
+     */
+  function selectKeys(arg, keysToSelect) {
+    // undefined inputs always return undefined
+    if (typeof arg === 'undefined') {
+      return undefined;
+    }
+
+    // Handle empty or undefined keysToSelect - return empty object
+    if (typeof keysToSelect === 'undefined' || keysToSelect === null) {
+      return {};
+    }
+
+    // Normalize keysToSelect to an array
+    var keysArray;
+    if (typeof keysToSelect === 'string') {
+      keysArray = [keysToSelect];
+    } else if (Array.isArray(keysToSelect)) {
+      keysArray = keysToSelect;
+    } else {
+      keysArray = [keysToSelect];
+    }
+
+    var result = {};
+
+    for (var key in arg) {
+      // Check if this key should be selected
+      var shouldSelect = false;
+      for (var i = 0; i < keysArray.length; i++) {
+        if (key === string(keysArray[i])) {
+          shouldSelect = true;
+          break;
+        }
+      }
+
+      if (shouldSelect) {
+        result[key] = arg[key];
+      }
+    }
+
+    return result;
+  }
+
+  /**
      * Test a string a gainst the FHIR decimal datatype RegEx
      * @param {String} str - the string to test
      * @returns {Boolean} - boolean
@@ -2644,7 +2692,7 @@ const functions = (() => {
     match, contains, replace, split, join, startsWith, endsWith, matches, isEmpty, isNumeric: _isNumeric,
     formatNumber, formatBase, number, floor, ceil, round, abs, sqrt, power, random,
     boolean, boolize, not,
-    map, zip, filter, pMap, pLimit, first, single, foldLeft, sift, omitKeys,
+    map, zip, filter, pMap, pLimit, first, single, foldLeft, sift, omitKeys, selectKeys,
     keys, lookup, append, exists, spread, merge, reverse, each, error, assert, type, sort, shuffle, distinct,
     base64encode, base64decode,  encodeUrlComponent, encodeUrl, decodeUrlComponent, decodeUrl,
     wait, rightNow, initCapOnce, initCap, uuid, reference, hash

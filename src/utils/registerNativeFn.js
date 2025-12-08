@@ -76,6 +76,7 @@ function registerNativeFn(staticFrame, functionEval) {
   staticFrame.bind('reduce', defineFunction(fn.foldLeft, '<afj?:j>')); // TODO <f<jj:j>a<j>j?:j>
   staticFrame.bind('sift', defineFunction(fn.sift, '<o-f?:o>'));
   staticFrame.bind('omitKeys', defineFunction(fn.omitKeys, '<o-(sa)?:o>'));
+  staticFrame.bind('selectKeys', defineFunction(fn.selectKeys, '<o-a<s>?:o>'));
   staticFrame.bind('keys', defineFunction(fn.keys, '<x-:a<s>>'));
   staticFrame.bind('lookup', defineFunction(fn.lookup, '<x-s:x>'));
   staticFrame.bind('append', defineFunction(fn.append, '<xx:a>'));
