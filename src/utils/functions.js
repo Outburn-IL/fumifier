@@ -297,6 +297,70 @@ const functions = (() => {
   }
 
   /**
+     * Tests if the str matches the given regex pattern (FHIRPath-style)
+     * @param {String} str - string to test
+     * @param {String} regex - regex pattern as a string
+     * @param {Array} [flags] - optional array of flags: 'i' (case-insensitive), 'm' (multiline), 'full' (full match)
+     * @returns {Boolean|undefined} - true if str matches regex, undefined for invalid inputs
+     */
+  function matches(str, regex, flags) {
+    // undefined inputs always return undefined
+    if (typeof str === 'undefined') {
+      return undefined;
+    }
+
+    // If regex is empty string, return undefined per FHIRPath spec
+    if (typeof regex === 'undefined' || regex === '') {
+      return undefined;
+    }
+
+    // If input is empty string, return undefined per FHIRPath spec
+    if (str === '') {
+      return undefined;
+    }
+
+    try {
+      // Parse flags
+      var jsFlags = '';
+      var useFullMatch = false;
+
+      if (Array.isArray(flags)) {
+        for (var i = 0; i < flags.length; i++) {
+          var flag = flags[i];
+          if (flag === 'i') {
+            jsFlags += 'i';
+          } else if (flag === 'm') {
+            jsFlags += 'm';
+          } else if (flag === 'full') {
+            useFullMatch = true;
+          }
+        }
+      }
+
+      // For 'full' flag, wrap regex with ^ and $ if not already present
+      var finalRegex = regex;
+      if (useFullMatch) {
+        if (!regex.startsWith('^')) {
+          finalRegex = '^' + finalRegex;
+        }
+        if (!regex.endsWith('$')) {
+          finalRegex = finalRegex + '$';
+        }
+      }
+
+      var regexObj = new RegExp(finalRegex, jsFlags);
+      return regexObj.test(str);
+
+    } catch (error) {
+      // Invalid regex - throw appropriate error
+      throw {
+        code: "T1040",
+        stack: (new Error()).stack,
+        value: regex,
+        errorMessage: "Invalid regular expression: " + error.message
+      };
+    }
+  }  /**
      * Lowercase a string
      * @param {String} str - String to evaluate
      * @returns {string} Lowercase string
@@ -2467,7 +2531,7 @@ const functions = (() => {
   return {
     sum, count, max, min, average,
     string, substring, substringBefore, substringAfter, lowercase, uppercase, length, trim, pad,
-    match, contains, replace, split, join, startsWith, endsWith, isNumeric: _isNumeric,
+    match, contains, replace, split, join, startsWith, endsWith, matches, isNumeric: _isNumeric,
     formatNumber, formatBase, number, floor, ceil, round, abs, sqrt, power, random,
     boolean, boolize, not,
     map, zip, filter, pMap, pLimit, first, single, foldLeft, sift,
