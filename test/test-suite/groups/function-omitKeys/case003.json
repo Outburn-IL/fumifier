@@ -1,0 +1,9 @@
+{
+    "expr": "$omitKeys($, [])",
+    "data": {"foo": "bar", "baz": "qux"},
+    "bindings": {},
+    "result": {
+        "foo": "bar",
+        "baz": "qux"
+    }
+}

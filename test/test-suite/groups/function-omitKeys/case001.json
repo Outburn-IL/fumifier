@@ -1,0 +1,11 @@
+{
+    "expr": "$omitKeys($inVal, 'y')",
+    "data": null,
+    "bindings": {
+      "inVal": {"x": 10, "y": 20, "z": 30}
+    },
+    "result": {
+        "x": 10,
+        "z": 30
+    }
+}

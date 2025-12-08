@@ -1,0 +1,12 @@
+{
+    "expr": "$omitKeys(['num', 'arr'])",
+    "data": {"str": "hello", "num": 42, "bool": true, "arr": [1,2,3], "obj": {"nested": "value"}},
+    "bindings": {},
+    "result": {
+        "str": "hello",
+        "bool": true,
+        "obj": {
+            "nested": "value"
+        }
+    }
+}

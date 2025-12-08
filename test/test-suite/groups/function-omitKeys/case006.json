@@ -1,0 +1,6 @@
+{
+    "expr": "$omitKeys({}, ['any', 'keys'])",
+    "data": null,
+    "bindings": {},
+    "result": {}
+}
