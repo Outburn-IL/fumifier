@@ -1,0 +1,9 @@
+{
+    "expr": "$selectKeys(['num', 'arr'])",
+    "data": {"str": "hello", "num": 42, "bool": true, "arr": [1,2,3], "obj": {"nested": "value"}},
+    "bindings": {},
+    "result": {
+        "num": 42,
+        "arr": [1,2,3]
+    }
+}

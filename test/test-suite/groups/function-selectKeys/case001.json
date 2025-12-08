@@ -1,0 +1,10 @@
+{
+    "expr": "$selectKeys($inVal, 'y')",
+    "data": null,
+    "bindings": {
+      "inVal": {"x": 10, "y": 20, "z": 30}
+    },
+    "result": {
+        "y": 20
+    }
+}

@@ -1,0 +1,6 @@
+{
+    "expr": "$selectKeys()",
+    "data": {"test": "value", "other": 42},
+    "bindings": {},
+    "result": {}
+}

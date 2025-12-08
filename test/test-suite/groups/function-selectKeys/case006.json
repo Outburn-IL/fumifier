@@ -1,0 +1,6 @@
+{
+    "expr": "$selectKeys({}, ['any', 'keys'])",
+    "data": null,
+    "bindings": {},
+    "result": {}
+}
