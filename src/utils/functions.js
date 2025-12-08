@@ -359,7 +359,70 @@ const functions = (() => {
         value: regex
       };
     }
-  }  /**
+  }
+
+  /**
+   * Check if a value is empty using recursive deep inspection
+   * @param {*} value - Value to check for emptiness (optional, uses context if not provided)
+   * @returns {boolean} true if value is empty, false otherwise
+   */
+  function isEmpty(value) {
+    // Handle undefined - considered empty
+    if (typeof value === 'undefined') {
+      return true;
+    }
+
+    // Handle null - considered empty
+    if (value === null) {
+      return true;
+    }
+
+    // Handle strings - empty or whitespace-only strings are empty
+    if (typeof value === 'string') {
+      return value.trim().length === 0;
+    }
+
+    // Handle numbers - all numbers including zero are considered values (non-empty)
+    if (typeof value === 'number') {
+      return false;
+    }
+
+    // Handle booleans - all booleans are considered values (non-empty)
+    if (typeof value === 'boolean') {
+      return false;
+    }
+
+    // Handle functions - considered non-empty values
+    if (typeof value === 'function') {
+      return false;
+    }
+
+    // Handle arrays
+    if (Array.isArray(value)) {
+      // Empty array is empty
+      if (value.length === 0) {
+        return true;
+      }
+      // Array is empty if all elements are empty
+      return value.every(item => isEmpty(item));
+    }
+
+    // Handle objects
+    if (typeof value === 'object') {
+      var keys = Object.keys(value);
+      // Empty object is empty
+      if (keys.length === 0) {
+        return true;
+      }
+      // Object is empty if all values are empty
+      return keys.every(key => isEmpty(value[key]));
+    }
+
+    // All other values are non-empty
+    return false;
+  }
+
+  /**
      * Lowercase a string
      * @param {String} str - String to evaluate
      * @returns {string} Lowercase string
@@ -2530,7 +2593,7 @@ const functions = (() => {
   return {
     sum, count, max, min, average,
     string, substring, substringBefore, substringAfter, lowercase, uppercase, length, trim, pad,
-    match, contains, replace, split, join, startsWith, endsWith, matches, isNumeric: _isNumeric,
+    match, contains, replace, split, join, startsWith, endsWith, matches, isEmpty, isNumeric: _isNumeric,
     formatNumber, formatBase, number, floor, ceil, round, abs, sqrt, power, random,
     boolean, boolize, not,
     map, zip, filter, pMap, pLimit, first, single, foldLeft, sift,
