@@ -1,0 +1,29 @@
+{
+  "title": "$search with object params format - should match case021",
+  "expr": "$search('Patient', {'name': 'John'})",
+  "dataset": {},
+  "bindings": {},
+  "result": {
+    "resourceType": "Bundle",
+    "type": "searchset",
+    "total": 1,
+    "entry": [
+      {
+        "fullUrl": "http://mock-server/fhir/Patient/123",
+        "resource": {
+          "resourceType": "Patient",
+          "id": "123",
+          "name": [
+            {
+              "given": ["John"],
+              "family": "Doe"
+            }
+          ]
+        },
+        "search": {
+          "mode": "match"
+        }
+      }
+    ]
+  }
+}
