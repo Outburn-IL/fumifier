@@ -238,7 +238,7 @@ const errorCodes = {
   "F3003": "Could not find ElementDefinition for {{fhirElement}} in {{instanceOf}}. This compiled FUME expression may be corrupted and needs to be parsed again.",
   "F3004": "Failed to determine the structural kind of {{fhirElement}} in {{instanceOf}}. This compiled FUME expression may be corrupted and needs to be parsed again.",
   "F3005": "Failed to determine the JSON element name of {{fhirElement}} in {{instanceOf}}. This compiled FUME expression may be corrupted and needs to be parsed again.",
-  "F5101": "Value for {{fhirElement}} in {{instanceOf}} must be a primitive value, recieved type: {{valueType}}.",
+  "F5101": "Value for {{fhirElement}} in {{instanceOf}} must be a primitive value, received type: {{valueType}}.",
   "F3007": "Failed to determine the data type of {{fhirElement}} in {{instanceOf}}. This compiled FUME expression may be corrupted and needs to be parsed again.",
   "F5131": "Element {{value}} is forbidden according to definition: {{fhirType}}.",
   "F5102": "Value for {{fhirElement}} in {{fhirParent}} must be a Resource object, received type: {{valueType}}.",
