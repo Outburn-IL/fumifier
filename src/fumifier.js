@@ -2523,9 +2523,9 @@ var fumifier = (function() {
     // Bind FHIR client if provided (Symbol-bound, not user-accessible)
     if (fhirClient) {
       environment.bind(Symbol.for('fumifier.__fhirClient'), fhirClient);
-      // Bind FHIR client wrapper functions
-      bindFhirClientFunctions(environment);
     }
+    // Always bind FHIR client wrapper functions (they check for client internally)
+    bindFhirClientFunctions(environment);
 
     // Apply bindings from compilation options if provided
     if (bindings && typeof bindings === 'object') {

@@ -5,6 +5,9 @@ Project: Fumifier (part of the FUME open-source initiative)
 License: See the LICENSE file included with this package for the terms that apply to this distribution.
 */
 
+import createPolicy from './policy.js';
+import { populateMessage } from './errorCodes.js';
+
 /**
  * Creates user-facing wrapper functions for FHIR client operations.
  * These functions are bound to the environment and provide controlled access to the FHIR client.
@@ -13,20 +16,39 @@ License: See the LICENSE file included with this package for the terms that appl
  */
 function createFhirClientWrappers(getFhirClient) {
   /**
-   * Helper to get FHIR client or throw appropriate error
+   * Helper to handle errors through policy system
+   * Respects throwLevel to decide whether to throw or return undefined
+   * @param {Object} err - Error object with code
+   * @param {Object} environment - Execution environment
+   * @returns {undefined} Returns undefined if error should not throw
+   * @throws {Object} Throws error if severity < throwLevel
+   */
+  function handleError(err, environment) {
+    try { populateMessage(err); } catch (_) { /* ignore */ }
+    const policy = createPolicy(environment);
+    if (policy.enforce(err)) {
+      throw err;
+    }
+    // Error was collected but should not throw - return undefined
+    return undefined;
+  }
+
+  /**
+   * Helper to get FHIR client or throw appropriate error (respects policy)
    * @param {Object} environment - Execution environment
    * @param {string} operationName - Name of operation for error messages
-   * @returns {Object} FHIR client instance
-   * @throws {Object} Error with code F5200 if client not configured
+   * @returns {Object} FHIR client instance or undefined if error should not throw
+   * @throws {Object} Error with code F5200 if client not configured (and severity < throwLevel)
    */
   function getClientOrThrow(environment, operationName) {
     const client = getFhirClient(environment);
     if (!client) {
-      throw {
+      const err = {
         code: 'F5200',
         stack: (new Error()).stack,
         operation: operationName
       };
+      return handleError(err, environment);
     }
     return client;
   }
@@ -40,18 +62,19 @@ function createFhirClientWrappers(getFhirClient) {
   function wrapOperation(operation, operationName) {
     return async function(...args) {
       const client = getClientOrThrow(this.environment, operationName);
+      if (!client) return undefined; // Client not configured and error was suppressed
       try {
         return await operation.call(client, ...args);
       } catch (err) {
         // Check if it's a timeout error
         if (err.name === 'AbortError' || (err.message && err.message.includes('timeout'))) {
-          throw {
+          return handleError({
             code: 'F5202',
             operation: operationName,
             timeout: client.config?.timeout || 30000,
             stack: err.stack || (new Error()).stack,
             sourceError: err
-          };
+          }, this.environment);
         }
 
         // Check for resource not found (404)
@@ -60,24 +83,24 @@ function createFhirClientWrappers(getFhirClient) {
           const resourceType = args[0];
           const resourceId = args[1];
           if (resourceType && resourceId) {
-            throw {
+            return handleError({
               code: 'F5210',
               resourceType,
               resourceId,
               stack: err.stack || (new Error()).stack,
               sourceError: err
-            };
+            }, this.environment);
           }
         }
 
         // Generic FHIR client error
-        throw {
+        return handleError({
           code: 'F5203',
           operation: operationName,
           errorMessage: err.message || String(err),
           stack: err.stack || (new Error()).stack,
           sourceError: err
-        };
+        }, this.environment);
       }
     };
   }
@@ -85,7 +108,10 @@ function createFhirClientWrappers(getFhirClient) {
   return {
     /**
      * $search(resourceType, params?, options?) - Search for FHIR resources
-     * Signature: <s-o?o?:x>
+     * @param {string} resourceType - Resource type to search
+     * @param {Object} params - Search parameters
+     * @param {Object} options - Search options
+     * @returns {Promise<Object>} Search results
      */
     search: wrapOperation(async function(resourceType, params, options) {
       return await this.search(resourceType, params, options);
@@ -93,7 +119,7 @@ function createFhirClientWrappers(getFhirClient) {
 
     /**
      * $capabilities() - Get server capabilities
-     * Signature: <:o>
+     * @returns {Promise<Object>} Capability statement
      */
     capabilities: wrapOperation(async function() {
       return await this.getCapabilities();
@@ -101,148 +127,211 @@ function createFhirClientWrappers(getFhirClient) {
 
     /**
      * $resourceId(resourceType, params, options?) - Get resource ID from search
-     * Signature: <so-o?:s>
+     * @param {string} resourceType - Resource type to search
+     * @param {Object} params - Search parameters
+     * @param {Object} options - Search options
+     * @returns {Promise<string>} Resource ID
      */
-    resourceId: wrapOperation(async function(resourceType, params, options) {
+    resourceId: async function(resourceType, params, options) {
+      const client = getClientOrThrow(this.environment, 'resourceId');
+      if (!client) return undefined; // Client not configured and error was suppressed
       try {
-        return await this.resourceId(resourceType, params, options);
+        return await client.resourceId(resourceType, params, options);
       } catch (err) {
-        // If the underlying method throws about multiple/no results, convert to our error codes
+        // Handle specific error messages from FHIR client
         if (err.message && err.message.includes('No resources found')) {
-          throw {
+          return handleError({
             code: 'F5211',
             resourceType,
             searchParams: JSON.stringify(params),
             stack: err.stack || (new Error()).stack,
             sourceError: err
-          };
+          }, this.environment);
         }
         if (err.message && err.message.includes('Multiple resources found')) {
-          const match = err.message.match(/(\d+) found/);
+          const match = err.message.match(/\((\d+) found\)/);
           const resultCount = match ? match[1] : 'multiple';
-          throw {
+          return handleError({
             code: 'F5212',
             resourceType,
             searchParams: JSON.stringify(params),
             resultCount,
             stack: err.stack || (new Error()).stack,
             sourceError: err
-          };
+          }, this.environment);
         }
-        throw err; // Re-throw if not a specific error we handle
+        // Generic error
+        return handleError({
+          code: 'F5203',
+          operation: 'resourceId',
+          errorMessage: err.message || String(err),
+          stack: err.stack || (new Error()).stack,
+          sourceError: err
+        }, this.environment);
       }
-    }, 'resourceId'),
+    },
 
     /**
      * $searchSingle(resourceTypeOrRef, params?, options?) - Resolve single resource
-     * Alias for $resolve
-     * Signature: <s-x?o?:o>
+     * @param {string} resourceTypeOrRef - Resource type or reference
+     * @param {Object} params - Search parameters
+     * @param {Object} options - Search options
+     * @returns {Promise<Object>} Resolved resource
      */
-    searchSingle: wrapOperation(async function(resourceTypeOrRef, params, options) {
+    searchSingle: async function(resourceTypeOrRef, params, options) {
+      const client = getClientOrThrow(this.environment, 'searchSingle');
+      if (!client) return undefined; // Client not configured and error was suppressed
       try {
-        return await this.resolve(resourceTypeOrRef, params, options);
+        return await client.resolve(resourceTypeOrRef, params, options);
       } catch (err) {
-        // Handle specific resolve errors
+        if (err.response && err.response.status === 404) {
+          const ref = resourceTypeOrRef;
+          const [resourceType, resourceId] = ref.split('/');
+          return handleError({
+            code: 'F5210',
+            resourceType,
+            resourceId,
+            stack: err.stack || (new Error()).stack,
+            sourceError: err
+          }, this.environment);
+        }
         if (err.message && err.message.includes('No resources found')) {
           const resourceType = typeof params === 'object' ? resourceTypeOrRef : resourceTypeOrRef.split('/')[0];
           const searchParams = typeof params === 'object' ? params : {};
-          throw {
+          return handleError({
             code: 'F5211',
             resourceType,
             searchParams: JSON.stringify(searchParams),
             stack: err.stack || (new Error()).stack,
             sourceError: err
-          };
+          }, this.environment);
         }
         if (err.message && err.message.includes('Multiple resources found')) {
           const resourceType = typeof params === 'object' ? resourceTypeOrRef : resourceTypeOrRef.split('/')[0];
           const searchParams = typeof params === 'object' ? params : {};
-          const match = err.message.match(/(\d+) found/);
+          const match = err.message.match(/\((\d+) found\)/);
           const resultCount = match ? match[1] : 'multiple';
-          throw {
+          return handleError({
             code: 'F5212',
             resourceType,
             searchParams: JSON.stringify(searchParams),
             resultCount,
             stack: err.stack || (new Error()).stack,
             sourceError: err
-          };
+          }, this.environment);
         }
-        throw err;
+        return handleError({
+          code: 'F5203',
+          operation: 'searchSingle',
+          errorMessage: err.message || String(err),
+          stack: err.stack || (new Error()).stack,
+          sourceError: err
+        }, this.environment);
       }
-    }, 'resolve'),
+    },
 
     /**
      * $resolve(resourceTypeOrRef, params?, options?) - Resolve resource by reference or search
-     * Signature: <s-x?o?:o>
+     * @param {string} resourceTypeOrRef - Resource type or reference
+     * @param {Object} params - Search parameters
+     * @param {Object} options - Search options
+     * @returns {Promise<Object>} Resolved resource
      */
-    resolve: wrapOperation(async function(resourceTypeOrRef, params, options) {
+    resolve: async function(resourceTypeOrRef, params, options) {
+      const client = getClientOrThrow(this.environment, 'resolve');
+      if (!client) return undefined; // Client not configured and error was suppressed
       try {
-        return await this.resolve(resourceTypeOrRef, params, options);
+        return await client.resolve(resourceTypeOrRef, params, options);
       } catch (err) {
-        // Handle specific resolve errors
+        if (err.response && err.response.status === 404) {
+          const ref = resourceTypeOrRef;
+          const [resourceType, resourceId] = ref.split('/');
+          return handleError({
+            code: 'F5210',
+            resourceType,
+            resourceId,
+            stack: err.stack || (new Error()).stack,
+            sourceError: err
+          }, this.environment);
+        }
         if (err.message && err.message.includes('No resources found')) {
           const resourceType = typeof params === 'object' ? resourceTypeOrRef : resourceTypeOrRef.split('/')[0];
           const searchParams = typeof params === 'object' ? params : {};
-          throw {
+          return handleError({
             code: 'F5211',
             resourceType,
             searchParams: JSON.stringify(searchParams),
             stack: err.stack || (new Error()).stack,
             sourceError: err
-          };
+          }, this.environment);
         }
         if (err.message && err.message.includes('Multiple resources found')) {
           const resourceType = typeof params === 'object' ? resourceTypeOrRef : resourceTypeOrRef.split('/')[0];
           const searchParams = typeof params === 'object' ? params : {};
-          const match = err.message.match(/(\d+) found/);
+          const match = err.message.match(/\((\d+) found\)/);
           const resultCount = match ? match[1] : 'multiple';
-          throw {
+          return handleError({
             code: 'F5212',
             resourceType,
             searchParams: JSON.stringify(searchParams),
             resultCount,
             stack: err.stack || (new Error()).stack,
             sourceError: err
-          };
+          }, this.environment);
         }
-        throw err;
+        return handleError({
+          code: 'F5203',
+          operation: 'resolve',
+          errorMessage: err.message || String(err),
+          stack: err.stack || (new Error()).stack,
+          sourceError: err
+        }, this.environment);
       }
-    }, 'resolve'),
+    },
 
     /**
      * $literal(resourceType, params, options?) - Get literal reference from search
-     * Signature: <so-o?:s>
+     * @param {string} resourceType - Resource type to search
+     * @param {Object} params - Search parameters
+     * @param {Object} options - Search options
+     * @returns {Promise<string>} Literal reference (resourceType/id)
      */
-    literal: wrapOperation(async function(resourceType, params, options) {
+    literal: async function(resourceType, params, options) {
+      const client = getClientOrThrow(this.environment, 'literal');
+      if (!client) return undefined; // Client not configured and error was suppressed
       try {
-        return await this.toLiteral(resourceType, params, options);
+        return await client.toLiteral(resourceType, params, options);
       } catch (err) {
-        // Handle specific toLiteral errors
         if (err.message && err.message.includes('No resources found')) {
-          throw {
+          return handleError({
             code: 'F5211',
             resourceType,
             searchParams: JSON.stringify(params),
             stack: err.stack || (new Error()).stack,
             sourceError: err
-          };
+          }, this.environment);
         }
         if (err.message && err.message.includes('Multiple resources found')) {
-          const match = err.message.match(/(\d+) found/);
+          const match = err.message.match(/\((\d+) found\)/);
           const resultCount = match ? match[1] : 'multiple';
-          throw {
+          return handleError({
             code: 'F5212',
             resourceType,
             searchParams: JSON.stringify(params),
             resultCount,
             stack: err.stack || (new Error()).stack,
             sourceError: err
-          };
+          }, this.environment);
         }
-        throw err;
+        return handleError({
+          code: 'F5203',
+          operation: 'literal',
+          errorMessage: err.message || String(err),
+          stack: err.stack || (new Error()).stack,
+          sourceError: err
+        }, this.environment);
       }
-    }, 'toLiteral')
+    }
   };
 }
 
