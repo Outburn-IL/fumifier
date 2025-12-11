@@ -172,65 +172,6 @@ function createFhirClientWrappers(getFhirClient) {
     },
 
     /**
-     * $searchSingle(resourceTypeOrRef, params?, options?) - Resolve single resource
-     * @param {string} resourceTypeOrRef - Resource type or reference
-     * @param {Object} params - Search parameters
-     * @param {Object} options - Search options
-     * @returns {Promise<Object>} Resolved resource
-     */
-    searchSingle: async function(resourceTypeOrRef, params, options) {
-      const client = getClientOrThrow(this.environment, 'searchSingle');
-      if (!client) return undefined; // Client not configured and error was suppressed
-      try {
-        return await client.resolve(resourceTypeOrRef, params, options);
-      } catch (err) {
-        if (err.response && err.response.status === 404) {
-          const ref = resourceTypeOrRef;
-          const [resourceType, resourceId] = ref.split('/');
-          return handleError({
-            code: 'F5210',
-            resourceType,
-            resourceId,
-            stack: err.stack || (new Error()).stack,
-            sourceError: err
-          }, this.environment);
-        }
-        if (err.message && err.message.includes('No resources found')) {
-          const resourceType = typeof params === 'object' ? resourceTypeOrRef : resourceTypeOrRef.split('/')[0];
-          const searchParams = typeof params === 'object' ? params : {};
-          return handleError({
-            code: 'F5211',
-            resourceType,
-            searchParams: JSON.stringify(searchParams),
-            stack: err.stack || (new Error()).stack,
-            sourceError: err
-          }, this.environment);
-        }
-        if (err.message && err.message.includes('Multiple resources found')) {
-          const resourceType = typeof params === 'object' ? resourceTypeOrRef : resourceTypeOrRef.split('/')[0];
-          const searchParams = typeof params === 'object' ? params : {};
-          const match = err.message.match(/\((\d+) found\)/);
-          const resultCount = match ? match[1] : 'multiple';
-          return handleError({
-            code: 'F5212',
-            resourceType,
-            searchParams: JSON.stringify(searchParams),
-            resultCount,
-            stack: err.stack || (new Error()).stack,
-            sourceError: err
-          }, this.environment);
-        }
-        return handleError({
-          code: 'F5203',
-          operation: 'searchSingle',
-          errorMessage: err.message || String(err),
-          stack: err.stack || (new Error()).stack,
-          sourceError: err
-        }, this.environment);
-      }
-    },
-
-    /**
      * $resolve(resourceTypeOrRef, params?, options?) - Resolve resource by reference or search
      * @param {string} resourceTypeOrRef - Resource type or reference
      * @param {Object} params - Search parameters
@@ -287,6 +228,14 @@ function createFhirClientWrappers(getFhirClient) {
           sourceError: err
         }, this.environment);
       }
+    },
+
+    /**
+     * $searchSingle - Alias for $resolve (maintained for backward compatibility)
+     * @see resolve
+     */
+    get searchSingle() {
+      return this.resolve;
     },
 
     /**
