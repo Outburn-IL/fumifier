@@ -1,0 +1,16 @@
+{
+  "description": "$resolve with object params format - should match case027",
+  "expr": "$resolve('Patient', {'name': 'Jane'})",
+  "dataset": {},
+  "bindings": {},
+  "result": {
+    "resourceType": "Patient",
+    "id": "456",
+    "name": [
+      {
+        "given": ["Jane"],
+        "family": "Smith"
+      }
+    ]
+  }
+}

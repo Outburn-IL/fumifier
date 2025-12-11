@@ -32,6 +32,12 @@ export class MockFhirClient {
         id: '456',
         name: [{ family: 'Smith', given: ['Jane'] }]
       },
+      'Practitioner/pract1': {
+        resourceType: 'Practitioner',
+        id: 'pract1',
+        identifier: [{ value: '9999958892' }],
+        name: [{ family: 'Test', given: ['Practitioner'] }]
+      },
       'Observation/obs1': {
         resourceType: 'Observation',
         id: 'obs1',
@@ -61,10 +67,30 @@ export class MockFhirClient {
         'name=Duplicate': ['Patient/123', 'Patient/456'],
         'identifier=http://system|12345': ['Patient/123']
       },
+      'Practitioner': {
+        'identifier=9999958892': ['Practitioner/pract1']
+      },
       'Observation': {
         'subject=Patient/123': ['Observation/obs1']
       }
     };
+  }
+
+  /**
+   * Parse query string format into resourceType and params
+   * @private
+   */
+  parseQueryString(resourceTypeOrQuery) {
+    if (typeof resourceTypeOrQuery === 'string' && resourceTypeOrQuery.includes('?')) {
+      const [type, queryString] = resourceTypeOrQuery.split('?');
+      const parsedParams = {};
+      queryString.split('&').forEach(pair => {
+        const [key, value] = pair.split('=');
+        parsedParams[key] = value;
+      });
+      return { type, params: parsedParams };
+    }
+    return null;
   }
 
   /**
@@ -87,6 +113,12 @@ export class MockFhirClient {
    * Search for resources
    */
   async search(resourceType, params = {}, options = {}) {
+    // Handle query string format: "ResourceType?param=value"
+    const parsed = this.parseQueryString(resourceType);
+    if (parsed && (!params || Object.keys(params).length === 0)) {
+      return await this.search(parsed.type, parsed.params, options);
+    }
+
     // Convert params to search key
     const searchKey = Object.entries(params)
       .map(([k, v]) => `${k}=${v}`)
@@ -140,6 +172,12 @@ export class MockFhirClient {
    * Get resource ID from search (expects exactly one result)
    */
   async resourceId(resourceType, params, options = {}) {
+    // Handle query string format: "ResourceType?param=value"
+    const parsed = this.parseQueryString(resourceType);
+    if (parsed && !params) {
+      return await this.resourceId(parsed.type, parsed.params, options);
+    }
+
     const bundle = await this.search(resourceType, params, options);
 
     if (bundle.total === 0) {
@@ -157,6 +195,12 @@ export class MockFhirClient {
    * Resolve resource by reference or search
    */
   async resolve(resourceTypeOrRef, params, options = {}) {
+    // Handle query string format: "ResourceType?param=value"
+    const parsed = this.parseQueryString(resourceTypeOrRef);
+    if (parsed && !params) {
+      return await this.resolve(parsed.type, parsed.params, options);
+    }
+
     // If params is undefined/null, treat as literal reference
     if (params === undefined || params === null || typeof params === 'string') {
       // Literal reference: "Patient/123"
@@ -183,6 +227,14 @@ export class MockFhirClient {
    * Get literal reference from search
    */
   async toLiteral(resourceType, params, options = {}) {
+    // Handle query string format: "ResourceType?param=value"
+    const parsed = this.parseQueryString(resourceType);
+    if (parsed && !params) {
+      const id = await this.resourceId(parsed.type, parsed.params, options);
+      return `${parsed.type}/${id}`;
+    }
+
+    // Standard format: resourceType and params as separate arguments
     const id = await this.resourceId(resourceType, params, options);
     return `${resourceType}/${id}`;
   }

@@ -1,0 +1,7 @@
+{
+  "description": "$resourceId with query string format - Patient?name=John",
+  "expr": "$resourceId('Patient?name=John')",
+  "dataset": {},
+  "bindings": {},
+  "result": "123"
+}

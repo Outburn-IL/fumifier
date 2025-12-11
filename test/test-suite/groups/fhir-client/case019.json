@@ -1,0 +1,7 @@
+{
+  "description": "$literal with query string format - Practitioner?identifier=9999958892",
+  "expr": "$literal('Practitioner?identifier=9999958892')",
+  "dataset": null,
+  "bindings": {},
+  "result": "Practitioner/pract1"
+}

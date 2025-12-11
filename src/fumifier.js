@@ -2430,10 +2430,10 @@ var fumifier = (function() {
     // Bind each wrapper function with its signature
     env.bind('search', defineFunction(wrappers.search, '<s-o?o?:x>'));
     env.bind('capabilities', defineFunction(wrappers.capabilities, '<:o>'));
-    env.bind('resourceId', defineFunction(wrappers.resourceId, '<so-o?:s>'));
-    env.bind('searchSingle', defineFunction(wrappers.searchSingle, '<s-x?o?:o>'));
-    env.bind('resolve', defineFunction(wrappers.resolve, '<s-x?o?:o>'));
-    env.bind('literal', defineFunction(wrappers.literal, '<so-o?:s>'));
+    env.bind('resourceId', defineFunction(wrappers.resourceId, '<s-o?o?:s>'));
+    env.bind('searchSingle', defineFunction(wrappers.searchSingle, '<s-o?o?:o>'));
+    env.bind('resolve', defineFunction(wrappers.resolve, '<s-o?o?:o>'));
+    env.bind('literal', defineFunction(wrappers.literal, '<s-o?o?:s>'));
   }
 
   /**

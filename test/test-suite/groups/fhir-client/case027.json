@@ -1,0 +1,16 @@
+{
+  "description": "$resolve with query string format - Patient?name=Jane",
+  "expr": "$resolve('Patient?name=Jane')",
+  "dataset": {},
+  "bindings": {},
+  "result": {
+    "resourceType": "Patient",
+    "id": "456",
+    "name": [
+      {
+        "given": ["Jane"],
+        "family": "Smith"
+      }
+    ]
+  }
+}

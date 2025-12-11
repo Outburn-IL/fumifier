@@ -1,0 +1,7 @@
+{
+  "description": "$literal with object params format - should match case019",
+  "expr": "$literal('Practitioner', {'identifier': '9999958892'})",
+  "dataset": null,
+  "bindings": {},
+  "result": "Practitioner/pract1"
+}
