@@ -245,6 +245,16 @@ const errorCodes = {
   "F5103": "Element {{fhirElement}} in {{fhirParent}} must be a Resource, but no \"resourceType\" attribute was found in the assigned object.",
   "F5104": "Value for {{fhirElement}} in {{fhirParent}} must be a complex object, received primitive type: {{valueType}}.",
   "F5140": "Missing required slice {{sliceName}} under {{fhirElement}} in {{fhirParent}}.",
+  // FHIR Server general errors (level 2x - errors by default)
+  "F5200": "Cannot perform operation {{operation}}: FHIR client is not configured.",
+  "F5201": "FHIR client operation failed: {{{errorMessage}}}",
+  "F5202": "FHIR client {{operation}} operation timed out after {{{timeout}}}ms",
+  "F5203": "FHIR client {{operation}} returned an error: {{{errorMessage}}}",
+  // FHIR Server resource resolution errors (level 21x - errors by default)
+  "F5210": "Resource not found: {{resourceType}}/{{resourceId}}",
+  "F5211": "Search for {{resourceType}} with parameters {{searchParams}} returned no results",
+  "F5212": "Search for {{resourceType}} with parameters {{searchParams}} returned multiple results ({{resultCount}} found), expected exactly one",
+  "F5213": "Invalid resource reference: {{reference}}",
   // ValueSet binding & expansion (primitives, Coding, Quantity, CodeableConcept)
   // Required binding violations (fatal by default)
   "F5120": "Value {{value}} for {{fhirElement}} in {{instanceOf}} is not in the required ValueSet.",

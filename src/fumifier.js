@@ -35,6 +35,7 @@ import defineFunction from './utils/defineFunction.js';
 import registerNativeFn from './utils/registerNativeFn.js';
 import createFlashEvaluator from './flashEvaluator.js';
 import { createDefaultLogger, SYM, decide, push, thresholds, severityFromCode, LEVELS } from './utils/diagnostics.js';
+import createFhirClientWrappers from './utils/fhirClientWrappers.js';
 
 /**
  * FumifierError class - represents errors thrown by Fumifier during parsing or evaluation
@@ -115,6 +116,10 @@ class FumifierError extends Error {
  */
 
 /**
+ * @typedef {import('@outburn/fhir-client').FhirClient} FhirClient
+ */
+
+/**
  * @typedef AstCacheInterface
  * @property {(identity: Object) => Promise<any>} get - Retrieve a value from the AST cache using identity object { source, version, recover, rootPackages? }
  * @property {(identity: Object, value: any) => Promise<void>} set - Store a value in the AST cache using identity object { source, version, recover, rootPackages? }
@@ -126,6 +131,13 @@ class FumifierError extends Error {
  * @property {(key: string) => Promise<string>} get - Get a mapping expression by key/name.
  */
 
+/**
+ * @typedef LoggerInterface
+ * @property {Function} debug - Log debug messages
+ * @property {Function} info - Log info messages
+ * @property {Function} warn - Log warning messages
+ * @property {Function} error - Log error messages
+ */
 
 /**
  * @typedef FumifierOptions
@@ -133,19 +145,33 @@ class FumifierError extends Error {
  * @property {FhirStructureNavigator} [navigator] FHIR structure navigator used to resolve FLASH constructs.
  * @property {AstCacheInterface} [astCache] Optional AST cache implementation for parsed expressions. Defaults to shared LRU cache.
  * @property {MappingCacheInterface} [mappingCache] Optional mapping repository for named expressions.
+ * @property {LoggerInterface} [logger] Optional logger implementation. Defaults to console-based logger.
+ * @property {FhirClient} [fhirClient] Optional FHIR client for server operations.
+ * @property {Record<string, any>} [bindings] Optional variable/function bindings (no signature support for functions).
+ */
+
+/**
+ * @typedef RuntimeOptions
+ * @property {LoggerInterface} [logger] Override logger for this evaluation only.
+ * @property {FhirClient} [fhirClient] Override FHIR client for this evaluation only.
+ * @property {MappingCacheInterface} [mappingCache] Override mapping cache for this evaluation only.
  */
 
 /**
  * @typedef FumifierCompiled
- * @property {(input: any, bindings?: Record<string, any>, callback?: (err: FumifierError | null, resp: any) => void) => Promise<any>} evaluate
- *   Evaluate the compiled expression against input. If provided, callback will be called with (err, result).
- * @property {(input: any, bindings?: Record<string, any>) => Promise<{ ok: boolean, status: number, result: any, diagnostics: any }>} evaluateVerbose
+ * @property {(input: any, bindings?: Record<string, any>, runtimeOptions?: RuntimeOptions) => Promise<any>} evaluate
+ *   Evaluate the compiled expression against input.
+ * @property {(input: any, bindings?: Record<string, any>, runtimeOptions?: RuntimeOptions) => Promise<{ ok: boolean, status: number, result: any, diagnostics: any }>} evaluateVerbose
  *   Like evaluate(), but never throws for handled errors; returns a report with diagnostics and HTTP-like status.
  * @property {(name: string | symbol, value: any) => void} assign Assign a value to a variable in the compilation scope.
  * @property {(name: string, implementation: (this: {environment:any, input:any}, ...args: any[]) => any, signature?: string) => void} registerFunction
  *   Register a custom function available to the expression. Optional JSONata signature string is supported.
- * @property {(newLogger: {debug: Function, info: Function, warn: Function, error: Function}) => void} setLogger
- *   Provide a logger implementation; defaults to console-based logger.
+ * @property {(newLogger: LoggerInterface) => void} setLogger
+ *   Set a logger implementation; defaults to console-based logger.
+ * @property {(cache: MappingCacheInterface) => void} setMappingCache
+ *   Set a mapping cache implementation.
+ * @property {(client: FhirClient) => void} setFhirClient
+ *   Set a FHIR client for server operations.
  * @property {() => any} ast Get the parsed AST (possibly FLASH-processed).
  * @property {() => any} errors Get parse-time errors if compiled with recover=true.
  */
@@ -2394,6 +2420,23 @@ var fumifier = (function() {
   })(staticFrame);
 
   /**
+   * Binds FHIR client wrapper functions to the environment
+   * @param {Object} env - The environment to bind FHIR client functions to
+   */
+  function bindFhirClientFunctions(env) {
+    const getFhirClient = (environment) => environment.lookup(Symbol.for('fumifier.__fhirClient'));
+    const wrappers = createFhirClientWrappers(getFhirClient);
+
+    // Bind each wrapper function with its signature
+    env.bind('search', defineFunction(wrappers.search, '<s-o?o?:x>'));
+    env.bind('capabilities', defineFunction(wrappers.capabilities, '<:o>'));
+    env.bind('resourceId', defineFunction(wrappers.resourceId, '<so-o?:s>'));
+    env.bind('searchSingle', defineFunction(wrappers.searchSingle, '<s-x?o?:o>'));
+    env.bind('resolve', defineFunction(wrappers.resolve, '<s-x?o?:o>'));
+    env.bind('literal', defineFunction(wrappers.literal, '<so-o?:s>'));
+  }
+
+  /**
      * Fumifier
      * @param {string|Object} expr - FUME mapping expression as text, or pre-parsed AST object
      * @param {FumifierOptions} [options]
@@ -2404,6 +2447,9 @@ var fumifier = (function() {
     var navigator = options && options.navigator;
     var recover = options && options.recover;
     var mappingCache = options && options.mappingCache;
+    var logger = options && options.logger;
+    var fhirClient = options && options.fhirClient;
+    var bindings = options && options.bindings;
     var compiledFhirRegex = {};
 
     // Get AST cache implementation - use external AST cache if provided, otherwise use default
@@ -2466,7 +2512,29 @@ var fumifier = (function() {
     environment.bind('validationLevel', 30);
 
     // Global logger for this compiled expression (not exposed to expressions)
-    environment.bind(SYM.logger, createDefaultLogger());
+    // Use provided logger or default
+    if (logger && typeof logger.debug === 'function' && typeof logger.info === 'function' &&
+        typeof logger.warn === 'function' && typeof logger.error === 'function') {
+      environment.bind(SYM.logger, logger);
+    } else {
+      environment.bind(SYM.logger, createDefaultLogger());
+    }
+
+    // Bind FHIR client if provided (Symbol-bound, not user-accessible)
+    if (fhirClient) {
+      environment.bind(Symbol.for('fumifier.__fhirClient'), fhirClient);
+      // Bind FHIR client wrapper functions
+      bindFhirClientFunctions(environment);
+    }
+
+    // Apply bindings from compilation options if provided
+    if (bindings && typeof bindings === 'object') {
+      for (const key in bindings) {
+        if (Object.prototype.hasOwnProperty.call(bindings, key)) {
+          environment.bind(key, bindings[key]);
+        }
+      }
+    }
 
     var timestamp = new Date(); // will be overridden on each call to evaluate()
     var executionId = utils.generateUuid(); // will be overridden on each call to evaluate()
@@ -2510,7 +2578,7 @@ var fumifier = (function() {
     });
 
     var fumifierObject = {
-      evaluate: async function (input, bindings, callback) {
+      evaluate: async function (input, bindings, runtimeOptions) {
         var exec_env;
         try {
           // throw if the expression compiled with syntax errors
@@ -2534,8 +2602,23 @@ var fumifier = (function() {
             }
           }
 
+          // Determine which mappingCache to use (runtime override or compilation default)
+          const effectiveMappingCache = (runtimeOptions && runtimeOptions.mappingCache) || mappingCache;
+
           // Setup evaluation environment with common logic, but preserve original timestamp behavior
-          exec_env = await setupEvaluationEnvironment(environment, bindings, input, mappingCache, false);
+          exec_env = await setupEvaluationEnvironment(environment, bindings, input, effectiveMappingCache, false);
+
+          // Apply runtime overrides if provided
+          if (runtimeOptions) {
+            if (runtimeOptions.logger) {
+              exec_env.bind(SYM.logger, runtimeOptions.logger);
+            }
+            if (runtimeOptions.fhirClient) {
+              exec_env.bind(Symbol.for('fumifier.__fhirClient'), runtimeOptions.fhirClient);
+              // Re-bind FHIR client functions with the runtime override
+              bindFhirClientFunctions(exec_env);
+            }
+          }
 
           // capture the timestamp and executionId for this execution
           // the $now() and $millis() functions will return these values, $executionId is available as a variable
@@ -2553,10 +2636,6 @@ var fumifier = (function() {
 
           const result = await evaluate(ast, input, exec_env);
 
-          if (typeof callback === 'function') {
-            callback(null, result);
-            return undefined;
-          }
           return result;
         } catch (err) {
           // insert error message into structure
@@ -2565,18 +2644,29 @@ var fumifier = (function() {
             const bag = exec_env && typeof exec_env.lookup === 'function' ? exec_env.lookup(SYM.diagnostics) : null;
             if (bag) err.flashDiagnostics = bag;
           } catch(ex) { /* ignore diagnostics attachment issues */ }
-          if (typeof callback === 'function') {
-            callback(err);
-            return undefined;
-          }
           throw err;
         }
       },
-      evaluateVerbose: async function (input, bindings) {
+      evaluateVerbose: async function (input, bindings, runtimeOptions) {
         // Like evaluate(), but never throws for handled errors; returns a report
 
+        // Determine which mappingCache to use (runtime override or compilation default)
+        const effectiveMappingCache = (runtimeOptions && runtimeOptions.mappingCache) || mappingCache;
+
         // Setup evaluation environment with common logic, but preserve original timestamp behavior
-        var exec_env = await setupEvaluationEnvironment(environment, bindings, input, mappingCache, false);
+        var exec_env = await setupEvaluationEnvironment(environment, bindings, input, effectiveMappingCache, false);
+
+        // Apply runtime overrides if provided
+        if (runtimeOptions) {
+          if (runtimeOptions.logger) {
+            exec_env.bind(SYM.logger, runtimeOptions.logger);
+          }
+          if (runtimeOptions.fhirClient) {
+            exec_env.bind(Symbol.for('fumifier.__fhirClient'), runtimeOptions.fhirClient);
+            // Re-bind FHIR client functions with the runtime override
+            bindFhirClientFunctions(exec_env);
+          }
+        }
 
         const timestamp = new Date();
         const executionId = utils.generateUuid();
@@ -2639,6 +2729,17 @@ var fumifier = (function() {
           lg = createDefaultLogger();
         }
         environment.bind(SYM.logger, lg);
+      },
+      setMappingCache: function(cache) {
+        // Update the mapping cache and rebind functions
+        mappingCache = cache;
+        environment.bind(Symbol.for('fumifier.__mappingCache'), cache);
+      },
+      setFhirClient: function(client) {
+        // Update the FHIR client
+        environment.bind(Symbol.for('fumifier.__fhirClient'), client);
+        // Re-bind FHIR client wrapper functions with new client
+        bindFhirClientFunctions(environment);
       },
       ast: function() {
         return ast;

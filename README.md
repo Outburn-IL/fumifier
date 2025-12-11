@@ -191,15 +191,42 @@ The fumifier function now accepts either:
 - `recover?: boolean` – attempt AST recovery on parse/resolution errors, collecting them as AST.errors instead of throwing. This is the recovery mode for parsing, not evaluation.
 - `astCache?: AstCacheInterface` – optional AST cache implementation for parsed expressions. Defaults to shared LRU cache.
 - `mappingCache?: MappingCacheInterface` – optional mapping repository for named expressions with `getKeys()` and `get(key)` methods.
+- `logger?: LoggerInterface` – optional logger implementation with `{ debug, info, warn, error }` methods. Defaults to console-based logger.
+- `fhirClient?: FhirClient` – optional FHIR client from `@outburn/fhir-client` for server operations.
+- `bindings?: Record<string, any>` – optional initial variable/function bindings (no signature support for functions).
 
 Compiled object methods:
-- `evaluate(input, bindings?, callback?) -> Promise<any>`
-- `evaluateVerbose(input, bindings?) -> Promise<{ ok, status, result, diagnostics }>`
-- `assign(name, value)` – bind a variable prior to evaluation
-- `registerFunction(name, implementation, signature?)` – register custom function (signature spec similar to JSONata)
-- `setLogger(logger)` – supply object with `{ debug, info, warn, error }`
+- `evaluate(input, bindings?, runtimeOptions?) -> Promise<any>`
+- `evaluateVerbose(input, bindings?, runtimeOptions?) -> Promise<{ ok, status, result, diagnostics }>`
+- `assign(name, value)` – bind a variable permanently to the compiled expression
+- `registerFunction(name, implementation, signature?)` – register custom function with optional JSONata signature
+- `setLogger(logger)` – set logger implementation
+- `setMappingCache(cache)` – set mapping cache implementation
+- `setFhirClient(client)` – set FHIR client for server operations
 - `ast()` – returns internal AST
 - `errors()` – returns compilation errors (if any)
+
+**RuntimeOptions** (third parameter to `evaluate`/`evaluateVerbose`):
+- `logger?: LoggerInterface` – override logger for this evaluation only
+- `fhirClient?: FhirClient` – override FHIR client for this evaluation only
+- `mappingCache?: MappingCacheInterface` – override mapping cache for this evaluation only
+
+Example with runtime overrides:
+```js
+const compiled = await fumifier(expr, {
+  logger: defaultLogger,
+  fhirClient: defaultClient
+});
+
+// Use defaults
+await compiled.evaluate(input);
+
+// Override for specific evaluation
+await compiled.evaluate(input, bindings, {
+  logger: requestLogger,
+  fhirClient: tenantClient
+});
+```
 
 ### AST Mobility ⭐ **New in v1.0.0**
 Fumifier now supports "AST mobility" - the ability to serialize and recreate compiled expressions:
@@ -235,16 +262,77 @@ Pass `bindings` to `evaluate` to set parameter variables or override thresholds 
 Signatures follow `<argtypes:return>` style. Example: `<s?:u>` means optional string param returning undefined.
 
 ---
-## 10. Custom Functions & Logging
+## 10. Custom Functions, Logging & FHIR Client
+### Custom Functions
 ```js
 compiled.registerFunction('toUpper', function(v){ return String(v).toUpperCase(); }, '<s:s>');
 ```
 Within a custom function `this` contains `{ environment, input }`.
 
+### Built-in Logging Functions
 Built‑in logging helpers produce diagnostics respecting thresholds:
 - `$warn(message)` code `F5320`
 - `$info(message)` code `F5500`
 - `$trace(value?, label, projection?)` code `F5600` – returns original value for chaining
+
+### FHIR Client Functions
+When a FHIR client is provided (via `options.fhirClient` or `setFhirClient()`), the following functions become available:
+
+```js
+import { FhirClient } from '@outburn/fhir-client';
+
+const client = new FhirClient({
+  baseUrl: 'https://hapi.fhir.org/baseR4',
+  fhirVersion: 'R4'
+});
+
+const compiled = await fumifier(expr, { fhirClient: client });
+
+// Available functions in expressions:
+// $search(resourceType, params?, options?) -> Bundle or Resource[]
+// $capabilities() -> CapabilityStatement
+// $resourceId(resourceType, params, options?) -> string (resource ID)
+// $searchSingle(resourceTypeOrRef, params?, options?) -> Resource
+// $resolve(resourceTypeOrRef, params?, options?) -> Resource
+// $literal(resourceType, params, options?) -> string (resourceType/id)
+```
+
+**Example expressions:**
+```javascript
+// Search for patients
+$search('Patient', { name: 'John' })
+
+// Get server capabilities
+$capabilities()
+
+// Get resource ID from search
+$resourceId('Patient', { identifier: 'http://system|12345' })
+
+// Resolve single resource by search
+$searchSingle('Patient', { identifier: 'http://system|12345' })
+
+// Resolve by literal reference
+$resolve('Patient/123')
+
+// Get literal reference from search
+$literal('Patient', { identifier: 'http://system|12345' })
+```
+
+**Error Handling:**
+FHIR client operations follow Fumifier's centralized error handling:
+- `F5200`: FHIR client not configured
+- `F5201-F5203`: General FHIR client errors
+- `F5210`: Resource not found (404)
+- `F5211`: Search returned no results
+- `F5212`: Search returned multiple results when one expected
+
+**Runtime Override:**
+```js
+// Per-evaluation FHIR client override (e.g., for multi-tenancy)
+await compiled.evaluate(input, bindings, {
+  fhirClient: tenantSpecificClient
+});
+```
 
 ---
 ## 11. TypeScript Support
