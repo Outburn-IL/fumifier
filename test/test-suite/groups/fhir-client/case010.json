@@ -1,0 +1,16 @@
+{
+  "description": "$searchSingle - alias for resolve with search",
+  "expr": "$searchSingle('Patient', { 'name': 'Jane' })",
+  "dataset": null,
+  "bindings": {},
+  "result": {
+    "resourceType": "Patient",
+    "id": "456",
+    "name": [
+      {
+        "family": "Smith",
+        "given": ["Jane"]
+      }
+    ]
+  }
+}

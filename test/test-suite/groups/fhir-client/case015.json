@@ -1,0 +1,7 @@
+{
+  "description": "Use in array comprehension",
+  "expr": "['John', 'Jane'].$resolve('Patient', { 'name': $ }).id",
+  "dataset": null,
+  "bindings": {},
+  "result": ["123", "456"]
+}

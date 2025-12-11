@@ -1,0 +1,8 @@
+{
+  "description": "No FHIR client configured throws F5200",
+  "expr": "$search('Patient', { 'name': 'John' })",
+  "dataset": null,
+  "bindings": {},
+  "noFhirClient": true,
+  "code": "F5200"
+}

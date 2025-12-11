@@ -1,0 +1,7 @@
+{
+  "description": "$resourceId - multiple results throws F5212",
+  "expr": "$resourceId('Patient', { 'name': 'Duplicate' })",
+  "dataset": null,
+  "bindings": {},
+  "code": "F5212"
+}

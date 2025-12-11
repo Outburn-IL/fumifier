@@ -1,0 +1,7 @@
+{
+  "description": "$literal - no results throws F5211",
+  "expr": "$literal('Patient', { 'name': 'Nobody' })",
+  "dataset": null,
+  "bindings": {},
+  "code": "F5211"
+}

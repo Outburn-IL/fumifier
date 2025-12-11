@@ -1,0 +1,12 @@
+{
+  "description": "$search - no results returns empty bundle",
+  "expr": "$search('Patient', { 'name': 'Nobody' })",
+  "dataset": null,
+  "bindings": {},
+  "result": {
+    "resourceType": "Bundle",
+    "type": "searchset",
+    "total": 0,
+    "entry": []
+  }
+}

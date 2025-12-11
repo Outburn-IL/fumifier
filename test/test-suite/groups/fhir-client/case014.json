@@ -1,0 +1,7 @@
+{
+  "description": "Complex expression - chain operations",
+  "expr": "$resolve('Patient/' & $resourceId('Patient', { 'name': 'John' })).name[0].given[0]",
+  "dataset": null,
+  "bindings": {},
+  "result": "John"
+}

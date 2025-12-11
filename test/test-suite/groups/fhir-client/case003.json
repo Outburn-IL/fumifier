@@ -1,0 +1,14 @@
+{
+  "description": "$capabilities - get server capabilities",
+  "expr": "$capabilities()",
+  "dataset": null,
+  "bindings": {},
+  "result": {
+    "resourceType": "CapabilityStatement",
+    "status": "active",
+    "date": "2025-12-11",
+    "kind": "instance",
+    "fhirVersion": "R4",
+    "format": ["application/fhir+json"]
+  }
+}

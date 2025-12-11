@@ -1,0 +1,7 @@
+{
+  "description": "$resolve - not found throws F5210",
+  "expr": "$resolve('Patient/999')",
+  "dataset": null,
+  "bindings": {},
+  "code": "F5210"
+}

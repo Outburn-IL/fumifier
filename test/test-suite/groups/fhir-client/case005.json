@@ -1,0 +1,7 @@
+{
+  "description": "$resourceId - no results throws F5211",
+  "expr": "$resourceId('Patient', { 'name': 'Nobody' })",
+  "dataset": null,
+  "bindings": {},
+  "code": "F5211"
+}

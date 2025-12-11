@@ -1,0 +1,10 @@
+{
+  "description": "F5200 at throwLevel 21 should still throw (fatal error, 0 < 21)",
+  "expr": "$search('Patient', { 'name': 'John' })",
+  "dataset": null,
+  "bindings": {
+    "throwLevel": 21
+  },
+  "noFhirClient": true,
+  "code": "F5200"
+}

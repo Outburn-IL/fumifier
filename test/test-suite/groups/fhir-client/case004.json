@@ -1,0 +1,7 @@
+{
+  "description": "$resourceId - get resource ID from search",
+  "expr": "$resourceId('Patient', { 'name': 'John' })",
+  "dataset": null,
+  "bindings": {},
+  "result": "123"
+}

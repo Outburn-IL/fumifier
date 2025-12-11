@@ -1,0 +1,16 @@
+{
+  "description": "$resolve - resolve by search",
+  "expr": "$resolve('Patient', { 'identifier': 'http://system|12345' })",
+  "dataset": null,
+  "bindings": {},
+  "result": {
+    "resourceType": "Patient",
+    "id": "123",
+    "name": [
+      {
+        "family": "Doe",
+        "given": ["John"]
+      }
+    ]
+  }
+}

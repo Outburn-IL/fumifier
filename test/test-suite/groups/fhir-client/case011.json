@@ -1,0 +1,7 @@
+{
+  "description": "$literal - get literal reference from search",
+  "expr": "$literal('Patient', { 'identifier': 'http://system|12345' })",
+  "dataset": null,
+  "bindings": {},
+  "result": "Patient/123"
+}

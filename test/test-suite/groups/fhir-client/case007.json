@@ -1,0 +1,16 @@
+{
+  "description": "$resolve - resolve by literal reference",
+  "expr": "$resolve('Patient/123')",
+  "dataset": null,
+  "bindings": {},
+  "result": {
+    "resourceType": "Patient",
+    "id": "123",
+    "name": [
+      {
+        "family": "Doe",
+        "given": ["John"]
+      }
+    ]
+  }
+}

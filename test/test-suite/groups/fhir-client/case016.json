@@ -1,0 +1,9 @@
+{
+  "description": "F5211 at throwLevel 21 should not throw (21 >= 21, returns undefined)",
+  "expr": "$resourceId('Patient', { 'name': 'Nobody' })",
+  "dataset": null,
+  "bindings": {
+    "throwLevel": 21
+  },
+  "undefinedResult": true
+}

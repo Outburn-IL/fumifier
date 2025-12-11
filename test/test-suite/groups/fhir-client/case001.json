@@ -1,0 +1,29 @@
+{
+  "description": "$search - successful search returning bundle",
+  "expr": "$search('Patient', { 'name': 'John' })",
+  "dataset": null,
+  "bindings": {},
+  "result": {
+    "resourceType": "Bundle",
+    "type": "searchset",
+    "total": 1,
+    "entry": [
+      {
+        "fullUrl": "http://mock-server/fhir/Patient/123",
+        "resource": {
+          "resourceType": "Patient",
+          "id": "123",
+          "name": [
+            {
+              "family": "Doe",
+              "given": ["John"]
+            }
+          ]
+        },
+        "search": {
+          "mode": "match"
+        }
+      }
+    ]
+  }
+}
