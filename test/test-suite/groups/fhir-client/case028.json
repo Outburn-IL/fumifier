@@ -1,5 +1,5 @@
 {
-  "title": "$resolve with object params format - should match case027",
+  "description": "$resolve with object params format - should match case027",
   "expr": "$resolve('Patient', {'name': 'Jane'})",
   "dataset": {},
   "bindings": {},

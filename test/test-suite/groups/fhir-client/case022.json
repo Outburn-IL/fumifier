@@ -1,5 +1,5 @@
 {
-  "title": "$search with object params format - should match case021",
+  "description": "$search with object params format - should match case021",
   "expr": "$search('Patient', {'name': 'John'})",
   "dataset": {},
   "bindings": {},

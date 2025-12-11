@@ -1,5 +1,5 @@
 {
-  "title": "$search with object params format and fetchAll - should match case023",
+  "description": "$search with object params format and fetchAll - should match case023",
   "expr": "$search('Patient', {'name': 'John'}, {'fetchAll': true})",
   "dataset": {},
   "bindings": {},

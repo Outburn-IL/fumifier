@@ -1,5 +1,5 @@
 {
-  "title": "$search with query string format and fetchAll - Patient?name=John",
+  "description": "$search with query string format and fetchAll - Patient?name=John",
   "expr": "$search('Patient?name=John', {}, {'fetchAll': true})",
   "dataset": {},
   "bindings": {},

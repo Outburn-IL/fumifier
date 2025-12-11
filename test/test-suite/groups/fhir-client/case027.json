@@ -1,5 +1,5 @@
 {
-  "title": "$resolve with query string format - Patient?name=Jane",
+  "description": "$resolve with query string format - Patient?name=Jane",
   "expr": "$resolve('Patient?name=Jane')",
   "dataset": {},
   "bindings": {},

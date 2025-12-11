@@ -1,5 +1,5 @@
 {
-  "title": "$resourceId with object params format - should match case025",
+  "description": "$resourceId with object params format - should match case025",
   "expr": "$resourceId('Patient', {'name': 'John'})",
   "dataset": {},
   "bindings": {},
