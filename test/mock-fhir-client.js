@@ -77,6 +77,23 @@ export class MockFhirClient {
   }
 
   /**
+   * Parse query string format into resourceType and params
+   * @private
+   */
+  parseQueryString(resourceTypeOrQuery) {
+    if (typeof resourceTypeOrQuery === 'string' && resourceTypeOrQuery.includes('?')) {
+      const [type, queryString] = resourceTypeOrQuery.split('?');
+      const parsedParams = {};
+      queryString.split('&').forEach(pair => {
+        const [key, value] = pair.split('=');
+        parsedParams[key] = value;
+      });
+      return { type, params: parsedParams };
+    }
+    return null;
+  }
+
+  /**
    * Read a resource by type and ID
    */
   async read(resourceType, id, options = {}) {
@@ -97,14 +114,9 @@ export class MockFhirClient {
    */
   async search(resourceType, params = {}, options = {}) {
     // Handle query string format: "ResourceType?param=value"
-    if (typeof resourceType === 'string' && resourceType.includes('?') && (!params || Object.keys(params).length === 0)) {
-      const [type, queryString] = resourceType.split('?');
-      const parsedParams = {};
-      queryString.split('&').forEach(pair => {
-        const [key, value] = pair.split('=');
-        parsedParams[key] = value;
-      });
-      return await this.search(type, parsedParams, options);
+    const parsed = this.parseQueryString(resourceType);
+    if (parsed && (!params || Object.keys(params).length === 0)) {
+      return await this.search(parsed.type, parsed.params, options);
     }
 
     // Convert params to search key
@@ -161,14 +173,9 @@ export class MockFhirClient {
    */
   async resourceId(resourceType, params, options = {}) {
     // Handle query string format: "ResourceType?param=value"
-    if (typeof resourceType === 'string' && resourceType.includes('?') && !params) {
-      const [type, queryString] = resourceType.split('?');
-      const parsedParams = {};
-      queryString.split('&').forEach(pair => {
-        const [key, value] = pair.split('=');
-        parsedParams[key] = value;
-      });
-      return await this.resourceId(type, parsedParams, options);
+    const parsed = this.parseQueryString(resourceType);
+    if (parsed && !params) {
+      return await this.resourceId(parsed.type, parsed.params, options);
     }
 
     const bundle = await this.search(resourceType, params, options);
@@ -189,14 +196,9 @@ export class MockFhirClient {
    */
   async resolve(resourceTypeOrRef, params, options = {}) {
     // Handle query string format: "ResourceType?param=value"
-    if (typeof resourceTypeOrRef === 'string' && resourceTypeOrRef.includes('?') && !params) {
-      const [type, queryString] = resourceTypeOrRef.split('?');
-      const parsedParams = {};
-      queryString.split('&').forEach(pair => {
-        const [key, value] = pair.split('=');
-        parsedParams[key] = value;
-      });
-      return await this.resolve(type, parsedParams, options);
+    const parsed = this.parseQueryString(resourceTypeOrRef);
+    if (parsed && !params) {
+      return await this.resolve(parsed.type, parsed.params, options);
     }
 
     // If params is undefined/null, treat as literal reference
@@ -226,15 +228,10 @@ export class MockFhirClient {
    */
   async toLiteral(resourceType, params, options = {}) {
     // Handle query string format: "ResourceType?param=value"
-    if (typeof resourceType === 'string' && resourceType.includes('?') && !params) {
-      const [type, queryString] = resourceType.split('?');
-      const parsedParams = {};
-      queryString.split('&').forEach(pair => {
-        const [key, value] = pair.split('=');
-        parsedParams[key] = value;
-      });
-      const id = await this.resourceId(type, parsedParams, options);
-      return `${type}/${id}`;
+    const parsed = this.parseQueryString(resourceType);
+    if (parsed && !params) {
+      const id = await this.resourceId(parsed.type, parsed.params, options);
+      return `${parsed.type}/${id}`;
     }
 
     // Standard format: resourceType and params as separate arguments
