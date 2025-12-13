@@ -6,6 +6,7 @@ License: See the LICENSE file included with this package for the terms that appl
 */
 
 /* eslint-disable no-console */
+/* eslint-disable valid-jsdoc */
 // Diagnostics infrastructure for FLASH (F5xxx policy-governed) and user logging
 // Lower value = more critical. Supports decimal severities.
 
@@ -25,7 +26,7 @@ export const LEVELS = {
 
 /**
  * Default console-based logger. Message-only API.
- * @returns {object} Logger with debug/info/warn/error methods.
+ * @returns {import('@outburn/types').Logger} Logger with debug/info/warn/error methods.
  */
 export function createDefaultLogger() {
   return {

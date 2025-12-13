@@ -191,7 +191,7 @@ The fumifier function now accepts either:
 - `recover?: boolean` – attempt AST recovery on parse/resolution errors, collecting them as AST.errors instead of throwing. This is the recovery mode for parsing, not evaluation.
 - `astCache?: AstCacheInterface` – optional AST cache implementation for parsed expressions. Defaults to shared LRU cache.
 - `mappingCache?: MappingCacheInterface` – optional mapping repository for named expressions with `getKeys()` and `get(key)` methods.
-- `logger?: LoggerInterface` – optional logger implementation with `{ debug, info, warn, error }` methods. Defaults to console-based logger.
+- `logger?: Logger` – optional logger implementation with `{ debug, info, warn, error }` methods. Defaults to console-based logger.
 - `fhirClient?: FhirClient` – optional FHIR client from `@outburn/fhir-client` for server operations.
 - `bindings?: Record<string, any>` – optional initial variable/function bindings (no signature support for functions).
 
@@ -207,7 +207,7 @@ Compiled object methods:
 - `errors()` – returns compilation errors (if any)
 
 **RuntimeOptions** (third parameter to `evaluate`/`evaluateVerbose`):
-- `logger?: LoggerInterface` – override logger for this evaluation only
+- `logger?: Logger` – override logger for this evaluation only
 - `fhirClient?: FhirClient` – override FHIR client for this evaluation only
 - `mappingCache?: MappingCacheInterface` – override mapping cache for this evaluation only
 

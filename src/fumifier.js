@@ -132,11 +132,7 @@ class FumifierError extends Error {
  */
 
 /**
- * @typedef LoggerInterface
- * @property {Function} debug - Log debug messages
- * @property {Function} info - Log info messages
- * @property {Function} warn - Log warning messages
- * @property {Function} error - Log error messages
+ * @typedef {import('@outburn/types').Logger}
  */
 
 /**
@@ -145,14 +141,14 @@ class FumifierError extends Error {
  * @property {FhirStructureNavigator} [navigator] FHIR structure navigator used to resolve FLASH constructs.
  * @property {AstCacheInterface} [astCache] Optional AST cache implementation for parsed expressions. Defaults to shared LRU cache.
  * @property {MappingCacheInterface} [mappingCache] Optional mapping repository for named expressions.
- * @property {LoggerInterface} [logger] Optional logger implementation. Defaults to console-based logger.
+ * @property {Logger} [logger] Optional logger implementation. Defaults to console-based logger.
  * @property {FhirClient} [fhirClient] Optional FHIR client for server operations.
  * @property {Record<string, any>} [bindings] Optional variable/function bindings (no signature support for functions).
  */
 
 /**
  * @typedef RuntimeOptions
- * @property {LoggerInterface} [logger] Override logger for this evaluation only.
+ * @property {Logger} [logger] Override logger for this evaluation only.
  * @property {FhirClient} [fhirClient] Override FHIR client for this evaluation only.
  * @property {MappingCacheInterface} [mappingCache] Override mapping cache for this evaluation only.
  */
@@ -166,7 +162,7 @@ class FumifierError extends Error {
  * @property {(name: string | symbol, value: any) => void} assign Assign a value to a variable in the compilation scope.
  * @property {(name: string, implementation: (this: {environment:any, input:any}, ...args: any[]) => any, signature?: string) => void} registerFunction
  *   Register a custom function available to the expression. Optional JSONata signature string is supported.
- * @property {(newLogger: LoggerInterface) => void} setLogger
+ * @property {(newLogger: Logger) => void} setLogger
  *   Set a logger implementation; defaults to console-based logger.
  * @property {(cache: MappingCacheInterface) => void} setMappingCache
  *   Set a mapping cache implementation.
