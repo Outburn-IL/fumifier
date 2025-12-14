@@ -3,11 +3,13 @@ import fumifier from '../src/fumifier.js';
 import assert from 'assert';
 import { FhirStructureNavigator } from "@outburn/structure-navigator";
 import { FhirSnapshotGenerator } from "fhir-snapshot-generator";
+import { FhirTerminologyRuntime } from "fhir-terminology-runtime";
 import { getDefaultCache } from '../src/utils/moduleCache.js';
 import { AstCacheInterface } from '../src/utils/cacheUtils.js';
 
 describe('Cached Parsing Feature', function() {
   let navigator;
+  let terminologyRuntime;
 
   before(async function() {
     this.timeout(180000); // Set timeout to 180 seconds (3 minutes)
@@ -19,6 +21,11 @@ describe('Cached Parsing Feature', function() {
     });
     // Create a FhirStructureNavigator instance using the FhirSnapshotGenerator
     navigator = new FhirStructureNavigator(fsg);
+    terminologyRuntime = await FhirTerminologyRuntime.create({
+      context: ['il.core.fhir.r4#0.17.0', 'fumifier.test.pkg#0.1.0'],
+      cachePath: './test/.test-cache',
+      fhirVersion: '4.0.1'
+    });
   });
 
   beforeEach(function() {
@@ -59,11 +66,11 @@ describe('Cached Parsing Feature', function() {
 * gender = "unknown"`;
 
     // First compilation
-    const expr1 = await fumifier(flashExpr, { navigator });
+    const expr1 = await fumifier(flashExpr, { navigator, terminologyRuntime });
     const result1 = await expr1.evaluate({});
 
     // Second compilation should use cache
-    const expr2 = await fumifier(flashExpr, { navigator });
+    const expr2 = await fumifier(flashExpr, { navigator, terminologyRuntime });
     const result2 = await expr2.evaluate({});
 
     // Results should be identical
@@ -151,7 +158,7 @@ describe('Cached Parsing Feature', function() {
 * id = 'context-test'`;
 
     // Compile with navigator
-    const exprWithNav = await fumifier(flashExpr, { navigator });
+    const exprWithNav = await fumifier(flashExpr, { navigator, terminologyRuntime });
 
     // Compile without navigator (should error or have different behavior)
     try {

@@ -71,6 +71,7 @@ function handleRecoverableError(base, positions, recover, errors, errObj) {
  * if the expression has FLASH it will be flagged as such and passed here for FHIR definition resolution and processing.
  * @param {Object} expr - Parsed Fumifier expression
  * @param {FhirStructureNavigator} navigator - FHIR structure navigator
+ * @param {FhirTerminologyRuntime} terminologyRuntime - FHIR terminology runtime for valueset expansions
  * @param {boolean} recover - If true, will continue processing and collect errors instead of throwing them.
  * @param {Array} errors - Array to collect errors if recover is true
  * @param {Object} compiledRegexCache - Cache for compiled FHIR regexes
@@ -83,7 +84,7 @@ function handleRecoverableError(base, positions, recover, errors, errObj) {
  *   - resolvedValueSetExpansions: ValueSet expansion cache
  *   - normalizedRootPackages: Array of normalized root package contexts from FPE (for AST mobility)
  */
-const resolveDefinitions = async function (expr, navigator, recover, errors, compiledRegexCache) {
+const resolveDefinitions = async function (expr, navigator, terminologyRuntime, recover, errors, compiledRegexCache) {
   if (!expr || !expr.containsFlash) return expr;
   // create utilities for fetching FHIR definitions
   const {
@@ -92,7 +93,7 @@ const resolveDefinitions = async function (expr, navigator, recover, errors, com
     getElement,
     getChildren,
     expandValueSet
-  } = createFhirFetchers(navigator);
+  } = createFhirFetchers(navigator, terminologyRuntime);
 
   // Initialize containers for resolved definitions
   // ============================================================

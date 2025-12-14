@@ -2,9 +2,11 @@ import fumifier from '../src/fumifier.js';
 import { expect } from 'chai';
 import { FhirStructureNavigator } from "@outburn/structure-navigator";
 import { FhirSnapshotGenerator } from "fhir-snapshot-generator";
+import { FhirTerminologyRuntime } from "fhir-terminology-runtime";
 
 describe('AST Resolution Optimization', function() {
   let navigator;
+  let terminologyRuntime;
 
   before(async function() {
     this.timeout(180000); // Set timeout to 180 seconds (3 minutes)
@@ -16,6 +18,11 @@ describe('AST Resolution Optimization', function() {
     });
     // Create a FhirStructureNavigator instance using the FhirSnapshotGenerator
     navigator = new FhirStructureNavigator(fsg);
+    terminologyRuntime = await FhirTerminologyRuntime.create({
+      context: ['il.core.fhir.r4#0.17.0', 'fumifier.test.pkg#0.1.0'],
+      cachePath: './test/.test-cache',
+      fhirVersion: '4.0.1'
+    });
   });
 
   it('should not re-resolve an already resolved AST', async function() {
@@ -23,7 +30,7 @@ describe('AST Resolution Optimization', function() {
 * id = 'test-patient-123'`;
 
     // First compilation - should trigger FLASH resolution
-    const compiled1 = await fumifier(expression, { navigator });
+    const compiled1 = await fumifier(expression, { navigator, terminologyRuntime });
     const ast1 = compiled1.ast();
 
     // Verify the AST is resolved
@@ -35,7 +42,7 @@ describe('AST Resolution Optimization', function() {
     const originalResolvedElementDefinitions = ast1.resolvedElementDefinitions;
 
     // Second compilation using the already-resolved AST - should NOT re-resolve
-    const compiled2 = await fumifier(ast1, { navigator });
+    const compiled2 = await fumifier(ast1, { navigator, terminologyRuntime });
     const ast2 = compiled2.ast();
 
     // Verify it's the same AST object (no cloning happened)
@@ -84,7 +91,7 @@ describe('AST Resolution Optimization', function() {
     expect(errors1[0].code).to.equal('F1000');
 
     // Now compile with navigator - should resolve
-    const compiled2 = await fumifier(ast1, { navigator });
+    const compiled2 = await fumifier(ast1, { navigator, terminologyRuntime });
     const ast2 = compiled2.ast();
 
     // Verify it's the same AST object but now resolved
@@ -106,7 +113,7 @@ describe('AST Resolution Optimization', function() {
     expect(ast1.resolvedTypeMeta).to.be.undefined;
 
     // Compile again with navigator - should not change anything
-    const compiled2 = await fumifier(ast1, { navigator });
+    const compiled2 = await fumifier(ast1, { navigator, terminologyRuntime });
     const ast2 = compiled2.ast();
 
     // Should be the same object, no changes

@@ -7,6 +7,7 @@ import chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { FhirStructureNavigator } from '@outburn/structure-navigator';
 import { FhirSnapshotGenerator } from 'fhir-snapshot-generator';
+import { FhirTerminologyRuntime } from 'fhir-terminology-runtime';
 import { fileURLToPath } from 'url';
 import { LEVELS, severityFromCode } from '../src/utils/diagnostics.js';
 
@@ -73,6 +74,7 @@ groups = groups.filter((g) => g.includes('flash'));
 // The suite
 describe('Fumifier Verbose Policy Matrix (F5xxx)', () => {
   let navigator;
+  let terminologyRuntime;
   before(async () => {
     const fsg = await FhirSnapshotGenerator.create({
       context: ['il.core.fhir.r4#0.17.0', 'fumifier.test.pkg#0.1.0'],
@@ -81,6 +83,11 @@ describe('Fumifier Verbose Policy Matrix (F5xxx)', () => {
       cacheMode: 'lazy'
     });
     navigator = new FhirStructureNavigator(fsg);
+    terminologyRuntime = await FhirTerminologyRuntime.create({
+      context: ['il.core.fhir.r4#0.17.0', 'fumifier.test.pkg#0.1.0'],
+      cachePath: './test/.test-cache',
+      fhirVersion: '4.0.1'
+    });
   });
 
   for (const group of groups) {
@@ -117,7 +124,8 @@ describe('Fumifier Verbose Policy Matrix (F5xxx)', () => {
           let expr;
           try {
             expr = await fumifier(testcase.expr ?? fs.readFileSync(path.join(__dirname, 'test-suite', 'groups', group, testcase['expr-file'] || '')).toString(), {
-              navigator: testcase.noNavigator ? undefined : navigator
+              navigator: testcase.noNavigator ? undefined : navigator,
+              terminologyRuntime: testcase.noNavigator ? undefined : terminologyRuntime
             });
           } catch (e) {
             // If this F5 code triggers at parse time (unexpected), skip
