@@ -5,12 +5,14 @@ import path from 'path';
 import fumifier from '../src/fumifier.js';
 import { FhirSnapshotGenerator } from 'fhir-snapshot-generator';
 import { FhirStructureNavigator } from '@outburn/structure-navigator';
+import { FhirPackageExplorer } from 'fhir-package-explorer';
 
 // var context = ['il.core.fhir.r4#0.17.0', 'fumifier.test.pkg#0.1.0'];
 var context = ['il.szmc.fhir.r4#0.3.3'];
 
 void async function () {
-  var generator = await FhirSnapshotGenerator.create({
+  // Create shared FhirPackageExplorer instance
+  var fpe = await FhirPackageExplorer.create({
     context,
     cachePath: './test/.test-cache',
     fhirVersion: '4.0.1',
@@ -18,6 +20,8 @@ void async function () {
     // logger: console
   });
 
+  // Create FhirSnapshotGenerator with shared FPE
+  var generator = await FhirSnapshotGenerator.create({ fpe, fhirVersion: '4.0.1', cacheMode: 'lazy' });
   var navigator = new FhirStructureNavigator(generator);
 
   var expression = `

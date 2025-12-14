@@ -8,6 +8,7 @@ import chaiAsPromised from 'chai-as-promised';
 import { FhirStructureNavigator } from '@outburn/structure-navigator';
 import { FhirSnapshotGenerator } from 'fhir-snapshot-generator';
 import { FhirTerminologyRuntime } from 'fhir-terminology-runtime';
+import { FhirPackageExplorer } from 'fhir-package-explorer';
 import { fileURLToPath } from 'url';
 import { LEVELS, severityFromCode } from '../src/utils/diagnostics.js';
 
@@ -76,18 +77,20 @@ describe('Fumifier Verbose Policy Matrix (F5xxx)', () => {
   let navigator;
   let terminologyRuntime;
   before(async () => {
-    const fsg = await FhirSnapshotGenerator.create({
+    // Create shared FhirPackageExplorer instance
+    const fpe = await FhirPackageExplorer.create({
       context: ['il.core.fhir.r4#0.17.0', 'fumifier.test.pkg#0.1.0'],
       cachePath: './test/.test-cache',
       fhirVersion: '4.0.1',
       cacheMode: 'lazy'
     });
+
+    // Create FhirSnapshotGenerator with shared FPE
+    const fsg = await FhirSnapshotGenerator.create({ fpe, fhirVersion: '4.0.1', cacheMode: 'lazy' });
     navigator = new FhirStructureNavigator(fsg);
-    terminologyRuntime = await FhirTerminologyRuntime.create({
-      context: ['il.core.fhir.r4#0.17.0', 'fumifier.test.pkg#0.1.0'],
-      cachePath: './test/.test-cache',
-      fhirVersion: '4.0.1'
-    });
+
+    // Create FhirTerminologyRuntime with shared FPE
+    terminologyRuntime = await FhirTerminologyRuntime.create({ fpe });
   });
 
   for (const group of groups) {

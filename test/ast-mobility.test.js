@@ -4,6 +4,7 @@ import assert from 'assert';
 import { FhirStructureNavigator } from "@outburn/structure-navigator";
 import { FhirSnapshotGenerator } from "fhir-snapshot-generator";
 import { FhirTerminologyRuntime } from "fhir-terminology-runtime";
+import { FhirPackageExplorer } from "fhir-package-explorer";
 
 describe('AST Mobility Feature', function() {
   let navigator;
@@ -11,19 +12,21 @@ describe('AST Mobility Feature', function() {
 
   before(async function() {
     this.timeout(180000); // Set timeout to 180 seconds (3 minutes)
-    const fsg = await FhirSnapshotGenerator.create({
+
+    // Create shared FhirPackageExplorer instance
+    const fpe = await FhirPackageExplorer.create({
       context: ['il.core.fhir.r4#0.17.0', 'fumifier.test.pkg#0.1.0'],
       cachePath: './test/.test-cache',
       fhirVersion: '4.0.1',
       cacheMode: 'lazy'
     });
-    // Create a FhirStructureNavigator instance using the FhirSnapshotGenerator
+
+    // Create FhirSnapshotGenerator with shared FPE
+    const fsg = await FhirSnapshotGenerator.create({ fpe, fhirVersion: '4.0.1', cacheMode: 'lazy' });
     navigator = new FhirStructureNavigator(fsg);
-    terminologyRuntime = await FhirTerminologyRuntime.create({
-      context: ['il.core.fhir.r4#0.17.0', 'fumifier.test.pkg#0.1.0'],
-      cachePath: './test/.test-cache',
-      fhirVersion: '4.0.1'
-    });
+
+    // Create FhirTerminologyRuntime with shared FPE
+    terminologyRuntime = await FhirTerminologyRuntime.create({ fpe });
   });
   it('should create fumifier object from AST JSON', async function() {
     // Create original expression
