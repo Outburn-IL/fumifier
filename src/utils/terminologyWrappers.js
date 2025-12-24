@@ -21,11 +21,29 @@ function createTerminologyWrappers(getTerminologyRuntime) {
     return undefined;
   }
 
+  function normalizeErrorMessage(e) {
+    if (!e) return 'Unknown error';
+    if (typeof e === 'string') return e;
+    if (typeof e.message === 'string' && e.message) return e.message;
+    try { return JSON.stringify(e); } catch (_) { return String(e); }
+  }
+
+  function stringifyCodeOrCoding(codeOrCoding) {
+    if (typeof codeOrCoding === 'string') return codeOrCoding;
+    if (!codeOrCoding || typeof codeOrCoding !== 'object') return String(codeOrCoding);
+    if (typeof codeOrCoding.code === 'string') {
+      const sys = (typeof codeOrCoding.system === 'string' && codeOrCoding.system) ? codeOrCoding.system : undefined;
+      return sys ? `${sys}|${codeOrCoding.code}` : codeOrCoding.code;
+    }
+    if (typeof codeOrCoding.value === 'string') return codeOrCoding.value;
+    try { return JSON.stringify(codeOrCoding); } catch (_) { return String(codeOrCoding); }
+  }
+
   function getRuntimeOrThrow(environment, operationName) {
     const runtime = getTerminologyRuntime(environment);
     if (!runtime) {
       return handleError({
-        code: 'F5305',
+        code: 'F5215',
         operation: operationName,
         stack: (new Error()).stack
       }, environment);
@@ -46,6 +64,45 @@ function createTerminologyWrappers(getTerminologyRuntime) {
   function maybeCollapseArray(items) {
     if (!Array.isArray(items) || items.length === 0) return undefined;
     return items.length === 1 ? items[0] : items;
+  }
+
+  function isSuccessfulConceptMapTranslationResult(result) {
+    return !!result && result.status === 'mapped';
+  }
+
+  async function translateConceptMapSafe(environment, codeOrCoding, conceptMapKey, packageFilter) {
+    const runtime = getRuntimeOrThrow(environment, 'translateConceptMap');
+    if (!runtime) return undefined;
+
+    let result;
+    try {
+      result = await runtime.translateConceptMap(codeOrCoding, conceptMapKey, packageFilter);
+    } catch (e) {
+      handleError({
+        code: 'F5214',
+        operation: 'translateConceptMap',
+        conceptMapKey,
+        errorMessage: normalizeErrorMessage(e),
+        stack: (e && e.stack) ? e.stack : (new Error()).stack
+      }, environment);
+      return undefined;
+    }
+
+    // Emit a debug diagnostic if no translation was performed.
+    // (Keep this non-fatal; caller still receives undefined for unmapped.)
+    if (result && result.status === 'unmapped') {
+      handleError({
+        code: 'F5321',
+        operation: 'translateConceptMap',
+        conceptMapKey,
+        value: stringifyCodeOrCoding(codeOrCoding),
+        status: result.status,
+        reason: result.reason,
+        stack: (new Error()).stack
+      }, environment);
+    }
+
+    return result;
   }
 
   return {
@@ -71,10 +128,8 @@ function createTerminologyWrappers(getTerminologyRuntime) {
      * $translateCode(codeOrCoding, conceptMapKey, packageFilter?) -> code | code[] | undefined
      */
     translateCode: async function(codeOrCoding, conceptMapKey, packageFilter) {
-      const runtime = getRuntimeOrThrow(this.environment, 'translateConceptMap');
-      if (!runtime) return undefined;
-      const result = await runtime.translateConceptMap(codeOrCoding, conceptMapKey, packageFilter);
-      if (!result || result.status !== 'mapped') return undefined;
+      const result = await translateConceptMapSafe(this.environment, codeOrCoding, conceptMapKey, packageFilter);
+      if (!isSuccessfulConceptMapTranslationResult(result)) return undefined;
       const codes = (result.targets || []).map(t => t && t.code).filter(Boolean);
       return maybeCollapseArray(codes);
     },
@@ -83,10 +138,8 @@ function createTerminologyWrappers(getTerminologyRuntime) {
      * $translateCoding(codeOrCoding, conceptMapKey, packageFilter?) -> Coding | Coding[] | undefined
      */
     translateCoding: async function(codeOrCoding, conceptMapKey, packageFilter) {
-      const runtime = getRuntimeOrThrow(this.environment, 'translateConceptMap');
-      if (!runtime) return undefined;
-      const result = await runtime.translateConceptMap(codeOrCoding, conceptMapKey, packageFilter);
-      if (!result || result.status !== 'mapped') return undefined;
+      const result = await translateConceptMapSafe(this.environment, codeOrCoding, conceptMapKey, packageFilter);
+      if (!isSuccessfulConceptMapTranslationResult(result)) return undefined;
       const codings = (result.targets || []).map(toCodingLike).filter(Boolean);
       return maybeCollapseArray(codings);
     },
@@ -95,10 +148,31 @@ function createTerminologyWrappers(getTerminologyRuntime) {
      * $translate(codeOrCoding, conceptMapKey, packageFilter?) -> code|code[]|Coding|Coding[]|undefined
      */
     translate: async function(codeOrCoding, conceptMapKey, packageFilter) {
-      if (typeof codeOrCoding === 'string') {
-        return await this.translateCode(codeOrCoding, conceptMapKey, packageFilter);
+      const environment = this.environment;
+      const isCode =
+        (typeof codeOrCoding === 'string') ||
+        (
+          codeOrCoding &&
+          typeof codeOrCoding === 'object' &&
+          typeof codeOrCoding.value === 'string' &&
+          !('code' in codeOrCoding)
+        );
+
+      const normalized =
+        (isCode && codeOrCoding && typeof codeOrCoding === 'object') ?
+          codeOrCoding.value :
+          codeOrCoding;
+
+      const result = await translateConceptMapSafe(environment, normalized, conceptMapKey, packageFilter);
+      if (!isSuccessfulConceptMapTranslationResult(result)) return undefined;
+
+      if (isCode) {
+        const codes = (result.targets || []).map(t => t && t.code).filter(Boolean);
+        return maybeCollapseArray(codes);
       }
-      return await this.translateCoding(codeOrCoding, conceptMapKey, packageFilter);
+
+      const codings = (result.targets || []).map(toCodingLike).filter(Boolean);
+      return maybeCollapseArray(codings);
     }
   };
 }

@@ -251,7 +251,8 @@ const errorCodes = {
   "F5202": "FHIR client {{operation}} operation timed out after {{{timeout}}}ms",
   "F5203": "FHIR client {{operation}} returned an error: {{{errorMessage}}}",
   // Terminology runtime general errors
-  "F5305": "Cannot perform operation {{operation}}: terminology runtime is not configured.",
+  "F5214": "Terminology operation {{operation}} failed for ConceptMap {{conceptMapKey}}: {{{errorMessage}}}",
+  "F5215": "Cannot perform operation {{operation}}: terminology runtime is not configured.",
   // FHIR Server resource resolution errors (level 21x - errors by default)
   "F5210": "Resource not found: {{resourceType}}/{{resourceId}}",
   "F5211": "Search for {{resourceType}} with parameters {{searchParams}} returned no results",
@@ -277,6 +278,7 @@ const errorCodes = {
   "F3015": "Internal UUID generation requires a seed value that is a FHIR resource object with a resourceType field",
   "D3500": "Error parsing regular expression {{value}} passed to $matches()",
   "F5320": "{{{message}}}",
+  "F5321": "No ConceptMap translation performed for {{value}} using {{conceptMapKey}} (status: {{status}}, reason: {{reason}}).",
   "F5500": "{{{message}}}",
   "F5600": "{{{message}}}"
 };

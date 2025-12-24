@@ -320,7 +320,7 @@ function createFlashEvaluator(evaluate) {
       const sourcePackage = elementDefinition.__vsSourcePackage;
 
       if (!terminologyRuntime) {
-        const errCode = 'F5305';
+        const errCode = 'F5215';
         if (!policy.shouldValidate(errCode)) return;
         const err = createBindingError(errCode, expr, elementDefinition, { operation: 'inValueSet', value: val, elementType: 'primitive' });
         if (policy.enforce(err)) throw err;
@@ -504,7 +504,7 @@ function createFlashEvaluator(evaluate) {
     const sourcePackage = elementDefinition.__vsSourcePackage;
     const expansionErrorCode = strength === 'required' ? 'F5310' : 'F5330';
 
-    const missingTerminologyRuntimeErrorCode = 'F5305';
+    const missingTerminologyRuntimeErrorCode = 'F5215';
 
     const lookupMembership = async (codeOrCoding) => {
       if (!vsKey) return { status: 'unknown', reason: 'unexpandable-valueset' };
