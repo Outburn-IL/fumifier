@@ -36,6 +36,7 @@ import registerNativeFn from './utils/registerNativeFn.js';
 import createFlashEvaluator from './flashEvaluator.js';
 import { createDefaultLogger, SYM, decide, push, thresholds, severityFromCode, LEVELS } from './utils/diagnostics.js';
 import createFhirClientWrappers from './utils/fhirClientWrappers.js';
+import createTerminologyWrappers from './utils/terminologyWrappers.js';
 
 /**
  * FumifierError class - represents errors thrown by Fumifier during parsing or evaluation
@@ -2441,6 +2442,22 @@ var fumifier = (function() {
   }
 
   /**
+   * Binds terminology runtime wrapper functions to the environment.
+   * These are always bound and will throw meaningful errors when the terminology runtime is missing.
+   * @param {Object} env - The environment to bind terminology functions to
+   */
+  function bindTerminologyFunctions(env) {
+    const getTerminologyRuntime = (environment) => environment.lookup(Symbol.for('fumifier.__terminologyRuntime'));
+    const wrappers = createTerminologyWrappers(getTerminologyRuntime);
+
+    env.bind('inValueSet', defineFunction(wrappers.inValueSet, '<x-so?:o>'));
+    env.bind('expandValueSet', defineFunction(wrappers.expandValueSet, '<s-o?:o>'));
+    env.bind('translateCode', defineFunction(wrappers.translateCode, '<x-so?:x>'));
+    env.bind('translateCoding', defineFunction(wrappers.translateCoding, '<x-so?:x>'));
+    env.bind('translate', defineFunction(wrappers.translate, '<x-so?:x>'));
+  }
+
+  /**
      * Fumifier
      * @param {string|Object} expr - FUME mapping expression as text, or pre-parsed AST object
      * @param {FumifierOptions} [options]
@@ -2531,6 +2548,9 @@ var fumifier = (function() {
     }
     // Always bind FHIR client wrapper functions (they check for client internally)
     bindFhirClientFunctions(environment);
+
+    // Always bind terminology wrapper functions (they check for runtime internally)
+    bindTerminologyFunctions(environment);
 
     // Apply bindings from compilation options if provided
     if (bindings && typeof bindings === 'object') {

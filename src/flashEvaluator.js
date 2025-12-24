@@ -109,7 +109,7 @@ function createFlashEvaluator(evaluate) {
    * @param {*} environment The environment envelope that contains the FHIR definitions and variable scope
    * @returns {Promise<{Object}>} Evaluated, validated and wrapped flash rule
    */
-  function finalizeFlashRuleResult(expr, input, environment) {
+  async function finalizeFlashRuleResult(expr, input, environment) {
     // Ensure the expression refers to a valid FHIR element
 
     if (!expr.flashPathRefKey) {
@@ -186,7 +186,7 @@ function createFlashEvaluator(evaluate) {
         // evaluated is an array of parsed primitive values (because parseSystemPrimitive maps arrays)
         const primitiveItems = evaluated.map(item => createFhirPrimitive({ value: item }));
         const resultsArray = createFlashRuleResultArray(groupingKey, kind, primitiveItems);
-        resultsArray.forEach(r => validatePrimitiveBinding(r, elementDefinition, expr, environment));
+        await Promise.all(resultsArray.map(r => validatePrimitiveBinding(r, elementDefinition, expr, environment)));
         return resultsArray; // return early with array of FlashRuleResults
       }
 
@@ -196,7 +196,7 @@ function createFlashEvaluator(evaluate) {
         ...input,
         value: evaluated // Assign the evaluated value to the 'value' key (can be undefined)
       });
-      validatePrimitiveBinding(result, elementDefinition, expr, environment);
+      await validatePrimitiveBinding(result, elementDefinition, expr, environment);
       return result;
     }
 
@@ -224,6 +224,19 @@ function createFlashEvaluator(evaluate) {
   function getResolvedValueSetDict(environment) {
     const defs = getFhirDefinitionsDictinary(environment);
     return defs?.resolvedValueSetExpansions || {};
+  }
+
+  /**
+   * Retrieve the injected terminology runtime from environment.
+   * @param {Object} environment Execution environment
+   * @returns {any} terminology runtime instance or undefined
+   */
+  function getTerminologyRuntime(environment) {
+    try {
+      return environment && environment.lookup && environment.lookup(Symbol.for('fumifier.__terminologyRuntime'));
+    } catch {
+      return undefined;
+    }
   }
 
   /**
@@ -272,7 +285,7 @@ function createFlashEvaluator(evaluate) {
    * @param {Object} expr AST node
    * @param {Object} environment Execution environment
    */
-  function validatePrimitiveBinding(resultObj, elementDefinition, expr, environment) {
+  async function validatePrimitiveBinding(resultObj, elementDefinition, expr, environment) {
     if (!elementDefinition.__bindingStrength) return; // no binding
     const strength = elementDefinition.__bindingStrength; // required | extensible
     const policy = createPolicy(environment);
@@ -289,16 +302,59 @@ function createFlashEvaluator(evaluate) {
     const expansionDict = elementDefinition.__vsRefKey ? expansions[elementDefinition.__vsRefKey] : undefined;
 
     const codeMap = {
-      required: { full: 'F5120', expansionError: 'F5310', expansionLazy: 'F5311' },
-      extensible: { full: 'F5340', expansionError: 'F5330', expansionLazy: 'F5331' }
+      required: { full: 'F5120', expansionError: 'F5310' },
+      extensible: { full: 'F5340', expansionError: 'F5330' }
     };
 
-    if (mode === 'error' || mode === 'lazy') {
-      const errCode = mode === 'error' ? codeMap[strength].expansionError : codeMap[strength].expansionLazy;
-      // Additional inhibition: if expansion error code itself is outside validation band, skip entirely
-      if (!policy.shouldValidate(errCode)) return; // no diagnostic at all
+    if (mode === 'error') {
+      const errCode = codeMap[strength].expansionError;
+      if (!policy.shouldValidate(errCode)) return;
       const err = createBindingError(errCode, expr, elementDefinition, { value: val, elementType: 'primitive' });
-      if (policy.enforce(err)) throw err; // ensure throw honored
+      if (policy.enforce(err)) throw err;
+      return;
+    }
+
+    if (mode === 'lazy') {
+      const terminologyRuntime = getTerminologyRuntime(environment);
+      const vsKey = elementDefinition.__vsUrl;
+      const sourcePackage = elementDefinition.__vsSourcePackage;
+
+      if (!terminologyRuntime) {
+        const errCode = 'F5305';
+        if (!policy.shouldValidate(errCode)) return;
+        const err = createBindingError(errCode, expr, elementDefinition, { operation: 'inValueSet', value: val, elementType: 'primitive' });
+        if (policy.enforce(err)) throw err;
+        return;
+      }
+      if (!vsKey) {
+        const errCode = codeMap[strength].expansionError;
+        if (!policy.shouldValidate(errCode)) return;
+        const err = createBindingError(errCode, expr, elementDefinition, { value: val, elementType: 'primitive' });
+        if (policy.enforce(err)) throw err;
+        return;
+      }
+
+      let membership;
+      try {
+        membership = await terminologyRuntime.inValueSet(val, vsKey, sourcePackage);
+      } catch {
+        membership = { status: 'unknown', reason: 'unexpandable-valueset' };
+      }
+
+      if (membership && membership.status === 'member') {
+        return;
+      }
+
+      if (membership && membership.status === 'not-member') {
+        const err = createBindingError(codeMap[strength].full, expr, elementDefinition, { value: val });
+        if (policy.enforce(err)) throw err;
+        return;
+      }
+
+      const errCode = codeMap[strength].expansionError;
+      if (!policy.shouldValidate(errCode)) return;
+      const err = createBindingError(errCode, expr, elementDefinition, { value: val, elementType: 'primitive' });
+      if (policy.enforce(err)) throw err;
       return;
     }
 
@@ -400,9 +456,9 @@ function createFlashEvaluator(evaluate) {
    * @param {Object} elementDefinition ElementDefinition
    * @param {Object} expr AST node
    * @param {Object} environment Execution environment
-   * @returns {boolean} True if valueObj was modified (injection occurred)
+   * @returns {Promise<boolean>} True if valueObj was modified (injection occurred)
    */
-  function processCodingLike(kindCode, valueObj, elementDefinition, expr, environment) {
+  async function processCodingLike(kindCode, valueObj, elementDefinition, expr, environment) {
     const strength = elementDefinition.__bindingStrength;
     if (!strength) return false; // no binding
 
@@ -435,19 +491,30 @@ function createFlashEvaluator(evaluate) {
 
 
 
-    if (mode === 'error' || mode === 'lazy') {
-      // Can't do injection without expansion, only validation errors
-      let errCode;
-      if (mode === 'error') {
-        errCode = strength === 'required' ? 'F5310' : 'F5330';
-      } else { // lazy
-        errCode = strength === 'required' ? 'F5311' : 'F5331';
-      }
+    if (mode === 'error') {
+      const errCode = strength === 'required' ? 'F5310' : 'F5330';
       if (policy.shouldValidate(errCode)) {
         enforce(errCode, { elementType: codeMap[kindCode].elementType });
       }
       return false;
     }
+
+    const terminologyRuntime = mode === 'lazy' ? getTerminologyRuntime(environment) : undefined;
+    const vsKey = elementDefinition.__vsUrl;
+    const sourcePackage = elementDefinition.__vsSourcePackage;
+    const expansionErrorCode = strength === 'required' ? 'F5310' : 'F5330';
+
+    const missingTerminologyRuntimeErrorCode = 'F5305';
+
+    const lookupMembership = async (codeOrCoding) => {
+      if (!vsKey) return { status: 'unknown', reason: 'unexpandable-valueset' };
+      if (!terminologyRuntime) return { status: 'unknown', reason: 'missing-terminology-runtime' };
+      try {
+        return await terminologyRuntime.inValueSet(codeOrCoding, vsKey, sourcePackage);
+      } catch {
+        return { status: 'unknown', reason: 'unexpandable-valueset' };
+      }
+    };
 
     let injectionOccurred = false;
 
@@ -462,22 +529,66 @@ function createFlashEvaluator(evaluate) {
 
       let concept = null;
       let validPair = false;
+      let sawExpansionIssue = false;
+      let sawMissingRuntime = false;
 
-      // Try to find concept and validate
-      if (system && code) {
-        concept = findConceptInExpansion(system, code, expansionDict || {});
-        validPair = !!concept;
-      } else if (code && !system) {
-        // Try system injection - find by code only if unambiguous
-        concept = findConceptByCode(code, expansionDict || {});
-        if (concept) {
-          // Inject system
-          valueObj.system = concept.system;
-          injectionOccurred = true;
-          validPair = true;
+      if (mode === 'full') {
+        // Try to find concept and validate
+        if (system && code) {
+          concept = findConceptInExpansion(system, code, expansionDict || {});
+          validPair = !!concept;
+        } else if (code && !system) {
+          // Try system injection - find by code only if unambiguous
+          concept = findConceptByCode(code, expansionDict || {});
+          if (concept) {
+            // Inject system
+            valueObj.system = concept.system;
+            injectionOccurred = true;
+            validPair = true;
 
-          // Reorder to maintain correct FHIR element order
-          reorderCodingQuantityAfterContextInjection(valueObj, kindCode);
+            // Reorder to maintain correct FHIR element order
+            reorderCodingQuantityAfterContextInjection(valueObj, kindCode);
+          }
+        }
+      } else {
+        // lazy mode - use terminology runtime membership checks
+        const hasSystemAndCode = !!(system && code);
+        const hasCodeOnly = !!(code && !system);
+
+        if (hasSystemAndCode) {
+          const r = await lookupMembership({ system, code });
+          if (r && r.status === 'member') {
+            concept = r.concept;
+            validPair = true;
+          } else if (r && r.status === 'not-member') {
+            validPair = false;
+          } else if (r && r.reason === 'missing-terminology-runtime') {
+            sawMissingRuntime = true;
+          } else {
+            sawExpansionIssue = true;
+          }
+        } else if (hasCodeOnly) {
+          const r = await lookupMembership(code);
+          if (r && r.status === 'member') {
+            concept = r.concept;
+            if (concept && concept.system) {
+              valueObj.system = concept.system;
+              injectionOccurred = true;
+              validPair = true;
+              reorderCodingQuantityAfterContextInjection(valueObj, kindCode);
+            } else {
+              // Cannot establish a (system,code) pair from code-only
+              sawExpansionIssue = true;
+              validPair = false;
+            }
+          } else if (r && r.status === 'unknown') {
+            // duplicate-code is not an expansion failure; it just prevents unambiguous injection
+            if (r.reason === 'missing-terminology-runtime') {
+              sawMissingRuntime = true;
+            } else if (r.reason !== 'duplicate-code') {
+              sawExpansionIssue = true;
+            }
+          }
         }
       }
 
@@ -496,48 +607,100 @@ function createFlashEvaluator(evaluate) {
           // Reorder to maintain correct FHIR element order
           reorderCodingQuantityAfterContextInjection(valueObj, kindCode);
         }
-      }      // Validation for required/extensible bindings only
-      if (strength === 'required') {
-        if (system && code && !validPair) {
-          enforce(codeMap[kindCode].required.full, { system, code });
-        }
-      } else if (strength === 'extensible') {
-        if (system && code && !validPair) {
-          enforce(codeMap[kindCode].extensible.full, { system, code });
+      }
+
+      // Validation for required/extensible bindings only
+      if (!validPair) {
+        if (mode === 'lazy' && sawMissingRuntime) {
+          enforce(missingTerminologyRuntimeErrorCode, { operation: 'inValueSet', elementType: codeMap[kindCode].elementType });
+        } else if (mode === 'lazy' && sawExpansionIssue && policy.shouldValidate(expansionErrorCode)) {
+          enforce(expansionErrorCode, { elementType: codeMap[kindCode].elementType });
+        } else if (mode === 'lazy' && sawExpansionIssue) {
+          // We couldn't evaluate membership, so do not treat as a binding violation.
+          // (If the caller wants this surfaced, they should enable validation for the expansion error code.)
+          return injectionOccurred;
+        } else if (strength === 'required') {
+          enforce(codeMap[kindCode].required.full, { system: valueObj?.system, code: valueObj?.code });
+        } else if (strength === 'extensible') {
+          enforce(codeMap[kindCode].extensible.full, { system: valueObj?.system, code: valueObj?.code });
         }
       }
     } else if (kindCode === 'CodeableConcept') {
-      const codings = Array.isArray(valueObj?.coding) ? valueObj.coding : [];
+      const rawCodings = Array.isArray(valueObj?.coding) ? valueObj.coding : [];
+      const codings = rawCodings.filter(c => c && c.code);
       let anyValid = false;
+      let sawExpansionIssue = false;
+      let sawMissingRuntime = false;
 
       for (const c of codings) {
         const system = c?.system;
         const code = c?.code;
         const display = c?.display;
 
-        // Skip this coding if code is undefined - let mandatory validation handle it
-        if (!code) continue;
-
         let concept = null;
         let validPair = false;
 
-        // Try to find concept and validate
-        if (system && code) {
-          concept = findConceptInExpansion(system, code, expansionDict || {});
-          validPair = !!concept;
-          if (validPair) anyValid = true;
-        } else if (code && !system) {
-          // Try system injection - find by code only if unambiguous
-          concept = findConceptByCode(code, expansionDict || {});
-          if (concept) {
-            // Inject system
-            c.system = concept.system;
-            injectionOccurred = true;
-            validPair = true;
-            anyValid = true;
+        if (mode === 'full') {
+          // Try to find concept and validate
+          if (system && code) {
+            concept = findConceptInExpansion(system, code, expansionDict || {});
+            validPair = !!concept;
+            if (validPair) anyValid = true;
+          } else if (code && !system) {
+            // Try system injection - find by code only if unambiguous
+            concept = findConceptByCode(code, expansionDict || {});
+            if (concept) {
+              // Inject system
+              c.system = concept.system;
+              injectionOccurred = true;
+              validPair = true;
+              anyValid = true;
 
-            // Reorder to maintain correct FHIR element order
-            reorderCodingQuantityAfterContextInjection(c, 'Coding');
+              // Reorder to maintain correct FHIR element order
+              reorderCodingQuantityAfterContextInjection(c, 'Coding');
+            }
+          }
+        } else {
+          // lazy mode - use terminology runtime membership checks
+          const hasSystemAndCode = !!(system && code);
+          const hasCodeOnly = !!(code && !system);
+
+          if (hasSystemAndCode) {
+            const r = await lookupMembership({ system, code });
+            if (r && r.status === 'member') {
+              concept = r.concept;
+              validPair = true;
+              anyValid = true;
+            } else if (r && r.status === 'not-member') {
+              validPair = false;
+            } else if (r && r.status === 'unknown') {
+              if (r.reason === 'missing-terminology-runtime') {
+                sawMissingRuntime = true;
+              } else {
+                sawExpansionIssue = true;
+              }
+            }
+          } else if (hasCodeOnly) {
+            const r = await lookupMembership(code);
+            if (r && r.status === 'member') {
+              concept = r.concept;
+              if (concept && concept.system) {
+                c.system = concept.system;
+                injectionOccurred = true;
+                validPair = true;
+                anyValid = true;
+                reorderCodingQuantityAfterContextInjection(c, 'Coding');
+              } else {
+                sawExpansionIssue = true;
+                validPair = false;
+              }
+            } else if (r && r.status === 'unknown') {
+              if (r.reason === 'missing-terminology-runtime') {
+                sawMissingRuntime = true;
+              } else if (r.reason !== 'duplicate-code') {
+                sawExpansionIssue = true;
+              }
+            }
           }
         }
 
@@ -554,11 +717,27 @@ function createFlashEvaluator(evaluate) {
       // Validation for required/extensible bindings only
       if (strength === 'required') {
         if (!anyValid && codings.length > 0) {
-          enforce(codeMap.CodeableConcept.required.full, { codingCount: codings.length });
+          if (mode === 'lazy' && sawMissingRuntime) {
+            enforce(missingTerminologyRuntimeErrorCode, { operation: 'inValueSet', elementType: codeMap[kindCode].elementType });
+          } else if (mode === 'lazy' && sawExpansionIssue && policy.shouldValidate(expansionErrorCode)) {
+            enforce(expansionErrorCode, { elementType: codeMap[kindCode].elementType });
+          } else if (mode === 'lazy' && sawExpansionIssue) {
+            return injectionOccurred;
+          } else {
+            enforce(codeMap.CodeableConcept.required.full, { codingCount: codings.length });
+          }
         }
       } else if (strength === 'extensible') {
         if (codings.length > 0 && !anyValid) {
-          enforce(codeMap.CodeableConcept.extensible.full, { codingCount: codings.length });
+          if (mode === 'lazy' && sawMissingRuntime) {
+            enforce(missingTerminologyRuntimeErrorCode, { operation: 'inValueSet', elementType: codeMap[kindCode].elementType });
+          } else if (mode === 'lazy' && sawExpansionIssue && policy.shouldValidate(expansionErrorCode)) {
+            enforce(expansionErrorCode, { elementType: codeMap[kindCode].elementType });
+          } else if (mode === 'lazy' && sawExpansionIssue) {
+            return injectionOccurred;
+          } else {
+            enforce(codeMap.CodeableConcept.extensible.full, { codingCount: codings.length });
+          }
         }
       }
     }
@@ -1081,14 +1260,14 @@ function createFlashEvaluator(evaluate) {
 
     if (expr.isFlashRule) {
       // if it's a flash rule, process and return the result as a flash rule
-      result = finalizeFlashRuleResult(expr, result, environment);
+      result = await finalizeFlashRuleResult(expr, result, environment);
       // Perform complex-type binding validation if applicable
       if (result && result.kind === 'complex-type') {
         const elDef = getElementDefinition(environment, expr);
         if (elDef) {
           const typeCode = elDef.__fhirTypeCode;
           if (['Coding','Quantity','CodeableConcept'].includes(typeCode)) {
-            processCodingLike(typeCode, result.value, elDef, expr, environment);
+            await processCodingLike(typeCode, result.value, elDef, expr, environment);
           }
         }
       }

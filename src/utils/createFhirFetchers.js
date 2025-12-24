@@ -29,6 +29,15 @@ function createFhirFetchers(navigator, terminologyRuntime) {
     getBaseTypeMeta: async function (typeCode, sourcePackage) {
       return await navigator.getFsg().getMetadata(typeCode, sourcePackage);
     },
+    getValueSetExpansionCount: async function (valueSetKey, sourcePackage) {
+      // valueSetKey can be id | name | canonical URL
+      // sourcePackage is expected to be provided in internal calls,
+      // but may be omitted when user calls it from within expressions
+      if (!terminologyRuntime) {
+        throw new Error('Terminology runtime not configured. Cannot count valueset expansion.');
+      }
+      return await terminologyRuntime.getValueSetExpansionCount(valueSetKey, sourcePackage);
+    },
     expandValueSet: async function (valueSetKey, sourcePackage) {
       // valueSetKey can be id | name | canonical URL
       // sourcePackage is expected to be provided in internal calls,
@@ -37,6 +46,18 @@ function createFhirFetchers(navigator, terminologyRuntime) {
         throw new Error('Terminology runtime not configured. Cannot expand valueset.');
       }
       return await terminologyRuntime.expandValueSet(valueSetKey, sourcePackage);
+    },
+    inValueSet: async function (codeOrCoding, valueSetKey, sourcePackage) {
+      if (!terminologyRuntime) {
+        throw new Error('Terminology runtime not configured. Cannot check valueset membership.');
+      }
+      return await terminologyRuntime.inValueSet(codeOrCoding, valueSetKey, sourcePackage);
+    },
+    translateConceptMap: async function (codeOrCoding, conceptMapKey, packageFilter) {
+      if (!terminologyRuntime) {
+        throw new Error('Terminology runtime not configured. Cannot fetch ConceptMap for the translation.');
+      }
+      return await terminologyRuntime.translateConceptMap(codeOrCoding, conceptMapKey, packageFilter);
     }
   };
 }

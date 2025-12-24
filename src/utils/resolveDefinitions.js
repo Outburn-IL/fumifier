@@ -92,6 +92,7 @@ const resolveDefinitions = async function (expr, navigator, terminologyRuntime, 
     getBaseTypeMeta,
     getElement,
     getChildren,
+    getValueSetExpansionCount,
     expandValueSet
   } = createFhirFetchers(navigator, terminologyRuntime);
 
@@ -195,6 +196,10 @@ const resolveDefinitions = async function (expr, navigator, terminologyRuntime, 
       };
       if (!sourcePackage.id || !sourcePackage.version) return; // cannot scope expansion properly
 
+      // Persist binding context for runtime membership checks during evaluation
+      ed.__vsUrl = vsUrl;
+      ed.__vsSourcePackage = sourcePackage;
+
       const trackerKey = `${sourcePackage.id}@${sourcePackage.version}::${vsUrl}`;
       if (valueSetExpansionTracker[trackerKey]) {
         // Reuse previous outcome
@@ -208,27 +213,35 @@ const resolveDefinitions = async function (expr, navigator, terminologyRuntime, 
       let mode = 'error';
       let vsRefKey;
       try {
-        const vs = await expandValueSet(vsUrl, sourcePackage); // may throw
-        if (vs && vs.expansion) {
-          // Determine size
-          let count = vs.expansion.count;
-          if (typeof count !== 'number') {
-            const containsCount = Array.isArray(vs.expansion.contains) ? vs.expansion.contains.length : 0;
-            count = containsCount;
-          }
-          const pkgId = vs.__packageId || sourcePackage.id;
-          const pkgVersion = vs.__packageVersion || sourcePackage.version;
-          const filename = vs.__filename || vs.id || vs.url || vsUrl;
-          vsRefKey = `${pkgId}@${pkgVersion}::${filename}`;
-          if (count <= 300) {
-            const transformed = transformExpansion(vs.expansion);
-            resolvedValueSetExpansions[vsRefKey] = transformed;
-            mode = 'full';
+        // Count-first: avoid loading full expansions for large ValueSets
+        let countResult;
+        try {
+          countResult = await getValueSetExpansionCount(vsUrl, sourcePackage);
+        } catch {
+          countResult = undefined;
+        }
+
+        if (countResult && countResult.status === 'ok' && typeof countResult.count === 'number') {
+          if (countResult.count <= 20) {
+            const vs = await expandValueSet(vsUrl, sourcePackage); // may throw
+            if (vs && vs.expansion) {
+              const pkgId = vs.__packageId || sourcePackage.id;
+              const pkgVersion = vs.__packageVersion || sourcePackage.version;
+              const filename = vs.__filename || vs.id || vs.url || vsUrl;
+              vsRefKey = `${pkgId}@${pkgVersion}::${filename}`;
+              const transformed = transformExpansion(vs.expansion);
+              resolvedValueSetExpansions[vsRefKey] = transformed;
+              mode = 'full';
+            } else {
+              mode = 'error';
+            }
           } else {
-            mode = 'lazy'; // too big to embed fully
+            mode = 'lazy'; // not embedded; will be checked at runtime via inValueSet
           }
         } else {
-          mode = 'error';
+          // Unknown count (unexpandable/unknown ValueSet) -> do not expand eagerly
+          // Keep as lazy so runtime can attempt membership checks; validation will fall back to expansion error if runtime can't.
+          mode = 'lazy';
         }
       } catch {
         mode = 'error';
