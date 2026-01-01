@@ -222,8 +222,35 @@ export function tokenize(expression) {
     const lexer = tokenizer(expression);
     const tokens = [];
 
-    // Get all tokens from the tokenizer directly
-    let token = lexer.next();
+    // The underlying lexer supports a context flag (passed to next()) that influences how '/'
+    // is tokenized: as division (infix) vs the start of a regex literal (prefix).
+    // The full parser passes this flag based on whether the next token has something to its left.
+    // For standalone tokenization (browser endpoint), we emulate that state machine.
+    const canStartInfix = (tok) => {
+      if (!tok) return false;
+
+      // Values/identifiers can appear on the LHS of an infix operator.
+      switch (tok.type) {
+        case 'name':
+        case 'variable':
+        case 'number':
+        case 'string':
+        case 'value':
+        case 'regex':
+        case 'url':
+          return true;
+        case 'operator':
+          // Closing delimiters end a sub-expression, so an infix operator may follow.
+          return tok.value === ')' || tok.value === ']' || tok.value === '}';
+        default:
+          return false;
+      }
+    };
+
+    // Get all tokens from the tokenizer directly.
+    // `infix` means: the next token has something to its left.
+    let infix = false;
+    let token = lexer.next(infix);
     while (token !== null) {
       // Convert position (end) to end for consistency
       tokens.push({
@@ -233,7 +260,9 @@ export function tokenize(expression) {
         end: token.position,
         line: token.line || 1
       });
-      token = lexer.next();
+
+      infix = canStartInfix(token);
+      token = lexer.next(infix);
     }
 
     return tokens;
