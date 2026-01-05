@@ -261,8 +261,8 @@ const errorCodes = {
   // ValueSet binding & expansion (primitives, Coding, Quantity, CodeableConcept)
   // Required binding violations (fatal by default)
   "F5120": "Value {{value}} for {{fhirElement}} in {{instanceOf}} is not in the required ValueSet.",
-  "F5121": "Coding (system={{system}}, code={{code}}) for {{fhirElement}} in {{instanceOf}} is not in the required ValueSet.",
-  "F5122": "Quantity unit code (system={{system}}, code={{code}}) for {{fhirElement}} in {{instanceOf}} is not in the required ValueSet.",
+  "F5121": "Coding (system={{system}}, code={{valueCode}}) for {{fhirElement}} in {{instanceOf}} is not in the required ValueSet.",
+  "F5122": "Quantity unit code (system={{system}}, code={{valueCode}}) for {{fhirElement}} in {{instanceOf}} is not in the required ValueSet.",
   "F5123": "CodeableConcept.coding does not contain a Coding from the required ValueSet ({{codingCount}} provided) for {{fhirElement}} in {{instanceOf}}.",
   // Required ValueSet expansion errors (warnings by default)
   "F5310": "Failed to expand required ValueSet for {{fhirElement}} in {{instanceOf}} ({{elementType}} binding).",
@@ -270,8 +270,8 @@ const errorCodes = {
   "F5330": "Failed to expand extensible ValueSet for {{fhirElement}} in {{instanceOf}} ({{elementType}} binding).",
   // Extensible binding violations (warnings by default)
   "F5340": "Value {{value}} for {{fhirElement}} in {{instanceOf}} is not in the extensible ValueSet.",
-  "F5341": "Coding (system={{system}}, code={{code}}) for {{fhirElement}} in {{instanceOf}} is not in the extensible ValueSet.",
-  "F5342": "Quantity unit code (system={{system}}, code={{code}}) for {{fhirElement}} in {{instanceOf}} is not in the extensible ValueSet.",
+  "F5341": "Coding (system={{system}}, code={{valueCode}}) for {{fhirElement}} in {{instanceOf}} is not in the extensible ValueSet.",
+  "F5342": "Quantity unit code (system={{system}}, code={{valueCode}}) for {{fhirElement}} in {{instanceOf}} is not in the extensible ValueSet.",
   "F5343": "CodeableConcept.coding does not contain a Coding from the extensible ValueSet for {{fhirElement}} in {{instanceOf}}.",
   "F3013": "Failed to determine the children of {{fhirElement}} in {{instanceOf}}. This compiled FUME expression may be corrupted and needs to be parsed again.",
   "F3014": "Error generating UUID: {{{errorMessage}}}",

@@ -620,9 +620,9 @@ function createFlashEvaluator(evaluate) {
           // (If the caller wants this surfaced, they should enable validation for the expansion error code.)
           return injectionOccurred;
         } else if (strength === 'required') {
-          enforce(codeMap[kindCode].required.full, { system: valueObj?.system, code: valueObj?.code });
+          enforce(codeMap[kindCode].required.full, { system: valueObj?.system, valueCode: valueObj?.code });
         } else if (strength === 'extensible') {
-          enforce(codeMap[kindCode].extensible.full, { system: valueObj?.system, code: valueObj?.code });
+          enforce(codeMap[kindCode].extensible.full, { system: valueObj?.system, valueCode: valueObj?.code });
         }
       }
     } else if (kindCode === 'CodeableConcept') {
