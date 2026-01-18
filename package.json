@@ -1,6 +1,6 @@
 {
   "name": "fumifier",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Fumifier is the core FLASH DSL engine inside FUME - It parses, compiles and executes FHIR related transformation logic expressed with FUME's specialized syntax (FLASH) and applies it to JSON data structures.",
   "author": "Outburn Ltd.",
   "main": "./dist/index.cjs",
@@ -92,8 +92,7 @@
     "lru-cache": "^11.2.4"
   },
   "devDependencies": {
-    "fhir-terminology-runtime": "^0.1.0",
-    "@outburn/structure-navigator": "^1.6.0",
+    "@outburn/structure-navigator": "^1.7.0",
     "@outburn/types": "^0.1.0",
     "c8": "^10.1.3",
     "chai": "^4.5.0",
@@ -101,9 +100,10 @@
     "eslint": "8.0.0",
     "eslint-plugin-ideal": "^0.1.3",
     "eslint-plugin-promise": "^6.6.0",
-    "fhir-package-explorer": "^1.7.0",
-    "fhir-snapshot-generator": "^2.0.0",
-    "fsh-sushi": "^3.16.5",
+    "fhir-package-explorer": "^1.8.0",
+    "fhir-snapshot-generator": "^2.1.0",
+    "fhir-terminology-runtime": "^1.0.0",
+    "fsh-sushi": "^3.17.0",
     "mocha": "^11.7.5",
     "mocha-lcov-reporter": "^1.3.0",
     "node-fetch": "^3.3.2",
@@ -118,11 +118,11 @@
   },
   "peerDependencies": {
     "@outburn/fhir-client": "^1.3.0",
-    "@outburn/structure-navigator": "^1.6.0",
+    "@outburn/structure-navigator": "^1.7.0",
     "@outburn/types": "^0.1.0",
-    "fhir-package-explorer": "^1.7.0",
-    "fhir-snapshot-generator": "^2.0.0",
-    "fhir-terminology-runtime": "^0.1.0"
+    "fhir-package-explorer": "^1.8.0",
+    "fhir-snapshot-generator": "^2.1.0",
+    "fhir-terminology-runtime": "^1.0.0"
   },
   "peerDependenciesMeta": {
     "@outburn/fhir-client": {
