@@ -119,7 +119,7 @@ describe("Functions with side-effects", () => {
 
     describe("$millis() returns different timestamp for subsequent evaluate() calls", function() {
       it("should return result object", async function() {
-        var expr = await fumifier("($sum([1..10000]); $millis())");
+        var expr = await fumifier("($sum([1..50000]); $millis())");
         var result = await expr.evaluate(testdata2);
         var result2 = await expr.evaluate(testdata2);
         expect(result).to.not.equal(result2);
@@ -1081,3 +1081,4 @@ function timeboxExpression(expr, timeout, maxDepth) {
     checkRunnaway();
   });
 }
+ 
