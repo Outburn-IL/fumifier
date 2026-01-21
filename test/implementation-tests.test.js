@@ -1081,4 +1081,3 @@ function timeboxExpression(expr, timeout, maxDepth) {
     checkRunnaway();
   });
 }
- 
