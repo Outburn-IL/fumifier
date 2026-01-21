@@ -1,8 +1,4 @@
 
-# Coding.display / Quantity.unit injection
-
-# Coding.system / Quantity.system injection
-
 # Cardinality
 * Enforce arrays according to base.max !== '1'
 * Take last `n` values where n=max
