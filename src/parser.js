@@ -1184,7 +1184,8 @@ const parser = (() => {
             });
           }
           // if the next token is a closing brace, throw F1108 (extra comma at the end)
-          if (lexer.peek() && lexer.peek().value === "]") {
+          const peekedAfterComma = lexer.peek();
+          if (peekedAfterComma && peekedAfterComma.type === 'operator' && peekedAfterComma.value === "]") {
             return handleError({
               code: "F1108",
               stack: (new Error()).stack,
@@ -1195,7 +1196,7 @@ const parser = (() => {
             });
           }
           // if the next token is a comma, throw F1110 (duplicate comma)
-          if (lexer.peek() && lexer.peek().value === ",") {
+          if (peekedAfterComma && peekedAfterComma.type === 'operator' && peekedAfterComma.value === ",") {
             return handleError({
               code: "F1110",
               stack: (new Error()).stack,
@@ -1326,7 +1327,8 @@ const parser = (() => {
             break;
           }
           // if the peeked next token is closing the object, throw dedicated error F1105 instead of the generic one
-          if (lexer.peek() && lexer.peek().value === "}") {
+          const peekedAfterComma = lexer.peek();
+          if (peekedAfterComma && peekedAfterComma.type === 'operator' && peekedAfterComma.value === "}") {
             return handleError({
               code: "F1105",
               stack: (new Error()).stack,
@@ -1337,7 +1339,7 @@ const parser = (() => {
             });
           }
           // if the next token is a comma, throw F1110 (duplicate comma)
-          if (lexer.peek() && lexer.peek().value === ",") {
+          if (peekedAfterComma && peekedAfterComma.type === 'operator' && peekedAfterComma.value === ",") {
             return handleError({
               code: "F1110",
               stack: (new Error()).stack,
