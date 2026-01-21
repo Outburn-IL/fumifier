@@ -28,6 +28,10 @@ import preProcessAst from './preProcessAst.js';
 function processAstWrapper(ast, recover, errors) {
   var containsFlash = false; // track if the AST contains any flash syntax
 
+  // Guard against cyclic ASTs produced during recovery-mode parsing of malformed input.
+  // In recover mode we prefer returning partial AST + diagnostics over throwing/stack-overflowing.
+  const visited = new WeakSet();
+
   // keep the root `InstanceOf:` value once entering flash blocks.
   var flashInstanceOf;
   var flashPathStack = []; // track the steps of the paths of flash rules in relation to their parent flash block
@@ -94,6 +98,13 @@ function processAstWrapper(ast, recover, errors) {
   // the core processAST function
   const processAST = function (ast) {
     var expr = preProcessAst(ast);
+
+    if (expr && typeof expr === 'object') {
+      if (visited.has(expr)) {
+        return expr;
+      }
+      visited.add(expr);
+    }
     var result;
     var slot;
     var priorPathSteps = [];
@@ -504,7 +515,7 @@ function processAstWrapper(ast, recover, errors) {
         break;
       case 'error':
         result = expr;
-        if (expr.lhs) {
+        if (expr.lhs && expr.lhs !== expr) {
           result = processAST(expr.lhs);
         }
         break;

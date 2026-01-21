@@ -475,3 +475,27 @@ describe('Invoke parser with incomplete expression', function() {
     });
   });
 });
+
+describe('Recover mode FLASH parsing', function() {
+  it('should not throw on trailing garbage token inside flash block', async function() {
+    const flashExpr = [
+      'InstanceOf: Patient',
+      "* birthDate = '2025-01-01'",
+      'a'
+    ].join('\n');
+
+    const compiled = await fumifier(flashExpr, { recover: true, navigator: undefined });
+    const errors = compiled.errors();
+    assert(Array.isArray(errors), 'Expected errors() to return an array');
+    assert(errors.length > 0, 'Expected at least one recoverable parse error');
+  });
+});
+
+describe('Recover mode JSONata parsing', function() {
+  it('should not throw on object constructor with missing value', async function() {
+    const compiled = await fumifier('{"identifier":}', { recover: true, navigator: undefined });
+    const errors = compiled.errors();
+    assert(Array.isArray(errors), 'Expected errors() to return an array');
+    assert(errors.length > 0, 'Expected at least one recoverable parse error');
+  });
+});

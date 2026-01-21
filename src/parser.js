@@ -208,8 +208,19 @@ const parser = (() => {
         return node;
       }
       if (next_token.type === 'indent' && !indentAwareMode) {
-        // skipping indent tokens unless inside a flash block, since they have no significance in a regular JSONata expression
-        next_token = lexer.next(infix);
+        // Skipping indent tokens unless they are significant.
+        // Note: indentAwareMode is enabled inside the nud() handlers for flash blocks.
+        // The Pratt parser calls advance() before nud(), so we must NOT skip an indent token
+        // that immediately follows a flash block starter token.
+        const previousStartsFlashBlock = node && (
+          node.id === '(instanceof)' ||
+          node.id === 'Instance:' ||
+          node.type === 'instanceof' ||
+          node.type === 'instance'
+        );
+        if (!previousStartsFlashBlock) {
+          next_token = lexer.next(infix);
+        }
       }
       /** Start preparing the processed token to return and override the `node` var with */
       var value = next_token.value;
@@ -316,7 +327,7 @@ const parser = (() => {
       while (rbp < node.lbp) {
         if (indentAwareMode) {
           const peekedNext = lexer.peek();
-          if (peekedNext && indentAwareTerminators.includes(peekedNext.id) || indentAwareTerminators.includes(peekedNext.value)) {
+          if (peekedNext && (indentAwareTerminators.includes(peekedNext.id) || indentAwareTerminators.includes(peekedNext.value))) {
             break;
           }
         }
@@ -480,11 +491,39 @@ const parser = (() => {
     // The only valid expression types that can be collected as "rules" are flashrules and ':=' (bind)
     var collectRules = function (level, root) {
       root = root || 0;
+      // Always return an array so callers can safely do `rules.length` even in recover mode.
+      var rules = [];
+      // In recover mode, try to resynchronize the token stream so we don't cascade errors
+      // (e.g., leaving a raw (indent) token at top-level causing S0201/S0206).
+      var syncToNextLineOrTerminator = function () {
+        if (!recover) return;
+
+        // Consume the current line so we can continue parsing subsequent content.
+        // We stop once we hit a new line indent token or a hard terminator.
+        const stopIds = new Set(['(indent)', '(end)', ')', '(instanceof)', 'Instance:']);
+
+        // If we're currently sitting on an indent token, consume it first so we don't stop immediately.
+        if (node && node.id === '(indent)') {
+          advance('(indent)', null);
+        }
+
+        while (node && !stopIds.has(node.id)) {
+          advance();
+        }
+      };
+      var pushAndReturnError = function (err) {
+        if (recover) {
+          errors.push(err);
+          rules.push({ type: 'error', error: err, position: err.position, start: err.start, line: err.line });
+          return rules;
+        }
+        err.stack = (new Error()).stack;
+        throw err;
+      };
       if (node.type === 'instance') {
         // Instance:` declaration must come BEFORE `InstanceOf:`
-        return handleError({
+        return pushAndReturnError({
           code: "F1010",
-          stack: (new Error()).stack,
           position: node.position,
           start: node.start,
           line: node.line,
@@ -493,29 +532,35 @@ const parser = (() => {
       }
       // confirm that the indent level is correct
       if (node.id === '(indent)' && node.value > level) {
-        return handleError({
+        const indentToken = node;
+        const err = {
           code: "F1017",
-          stack: (new Error()).stack,
-          position: node.position,
-          start: node.start,
-          line: node.line,
+          position: indentToken.position,
+          start: indentToken.start,
+          line: indentToken.line,
+          expectedIndent: level,
+          actualIndent: indentToken.value,
           token: `${String(level)} spaces`,
-          value: `${String(node.value)} spaces`
-        });
+          value: `${String(indentToken.value)} spaces`
+        };
+        syncToNextLineOrTerminator();
+        return pushAndReturnError(err);
       }
       if (node.id === '(indent)' && node.value < root) {
-        return handleError({
+        const indentToken = node;
+        const err = {
           code: "F1016",
-          stack: (new Error()).stack,
-          position: node.position,
-          start: node.start,
-          line: node.line,
+          position: indentToken.position,
+          start: indentToken.start,
+          line: indentToken.line,
+          expectedIndent: root,
+          actualIndent: indentToken.value,
           token: `${String(root)} spaces`,
-          value: `${String(node.value)} spaces`
-        });
+          value: `${String(indentToken.value)} spaces`
+        };
+        syncToNextLineOrTerminator();
+        return pushAndReturnError(err);
       }
-      // initialize an array to hold the collected rules
-      var rules = [];
       while (node.id !== ")" && node.id !== "(end)") {
         var indent = node.indent;
         if (node.id === "(indent)") {
@@ -524,15 +569,18 @@ const parser = (() => {
             advance("(indent)", null);
           } else {
             if ((level - node.value) % 2 !== 0) {
-              return handleError({
+              const indentToken = node;
+              const err = {
                 code: "F1021",
-                stack: (new Error()).stack,
-                position: node.position,
-                start: node.start,
-                line: node.line,
+                position: indentToken.position,
+                start: indentToken.start,
+                line: indentToken.line,
                 token: '(indent)',
-                value: `${String(node.value)} spaces`
-              });
+                actualIndent: indentToken.value,
+                value: `${String(indentToken.value)} spaces`
+              };
+              syncToNextLineOrTerminator();
+              return pushAndReturnError(err);
             }
             break;
           }
@@ -541,18 +589,16 @@ const parser = (() => {
         // ensure expression is either a flashrule or a bind rule
         if (rule.type !== 'flashrule' && rule.id !== ':=') {
           if (rule.id === '=') {
-            return handleError({
+            return pushAndReturnError({
               code: "F1025",
-              stack: (new Error()).stack,
               position: rule.position,
               start: rule.start,
               line: rule.line,
               token: rule.id
             });
           } else {
-            return handleError({
+            return pushAndReturnError({
               code: "F1011",
-              stack: (new Error()).stack,
               position: rule.position,
               start: rule.start,
               line: rule.line,
@@ -563,7 +609,7 @@ const parser = (() => {
         rule.indent = rule.indent || indent;
         rules.push(rule);
         if (node.id === ';') advance();
-        if (node.id !== "(indent)" || node.value < level) {
+        if (node.id !== "(indent)" || node.value !== level) {
           break;
         }
         advance("(indent)");
@@ -911,6 +957,11 @@ const parser = (() => {
       var rules = collectRules(this.indent, this.indent);
       if (rules.length > 0) this.expressions = rules;
       indentAwareMode = false; // disable indent aware mode
+      // Ensure we don't leave a raw (indent) token at top-level in recover mode (or after a truncated block)
+      // which can cause cascading parse errors.
+      while (node && node.id === '(indent)') {
+        advance();
+      }
       // return the flashblock node
       return this;
     });
@@ -943,6 +994,11 @@ const parser = (() => {
       var rules = collectRules(this.indent, this.indent);
       if (rules.length > 0) this.expressions = rules;
       indentAwareMode = false; // disable indent aware mode
+      // Ensure we don't leave a raw (indent) token at top-level in recover mode (or after a truncated block)
+      // which can cause cascading parse errors.
+      while (node && node.id === '(indent)') {
+        advance();
+      }
       return this;
     });
 

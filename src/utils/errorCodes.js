@@ -192,7 +192,7 @@ const errorCodes = {
   "F1014": "`InstanceOf:` must have the same indentation as `Instance:` ({{{token}}}). Instead got {{{value}}}",
   "F1015": "Expected indentation of {{{token}}}. Instead found {{{value}}}",
   "F1016": "Indentation in this FLASH block cannot be lower than {{{token}}}. Instead found {{{value}}}",
-  "F1017": "Indentation here cannot be greater than {{{token}}}. Instead found {{{value}}}",
+  "F1017": "Unexpected indentation. Expected {{{token}}}, found {{{value}}}",
   "F1018": "Expected an expression after the `Instance:` keyword. Instead found {{{value}}}",
   "F1019": "Expected a FHIR type/profile identifier after the `InstanceOf:` keyword.",
   "F1020": "The `:=` operator is used to bind values to variable names (starting with $). Did you mean `=`?",
