@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * Browser entry point integration tests
  * Tests the browser-friendly parser module imports and basic functionality
