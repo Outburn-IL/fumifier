@@ -89,7 +89,7 @@
     "LICENSES/**"
   ],
   "dependencies": {
-    "lru-cache": "^11.2.6"
+    "lru-cache": "^11.2.7"
   },
   "devDependencies": {
     "@outburn/structure-navigator": "^1.9.1",
