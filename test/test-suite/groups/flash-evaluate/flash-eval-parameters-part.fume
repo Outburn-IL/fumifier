@@ -1,0 +1,13 @@
+InstanceOf: Parameters
+
+* parameter
+  * name = 'operation'
+  * part
+    * name = 'op'
+    * valueCode = 'replace'
+  * part
+    * name = 'path'
+    * valueString = '/active'
+  * part
+    * name = 'value'
+    * valueBoolean = true

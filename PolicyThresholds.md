@@ -17,6 +17,11 @@ Thresholds are exclusive comparisons (sev < threshold) and are provided via the 
 - collectLevel: collect diagnostic when severity < collectLevel (default 70)
 - validationLevel: run validations when severity < validationLevel (default 30)
 
+What `logLevel` means:
+- It gates whether a diagnostic is emitted to the *evaluation environment logger* (`Symbol.for('fumifier.__logger')`).
+- That logger is typically provided by the embedding application via `compiled.setLogger(...)` or per-evaluation via `runtimeOptions.logger`.
+- This is distinct from any global application log filtering (e.g. a conventional `LOG_LEVEL` env var): `logLevel` controls fumifier policy logging decisions, not the host application's logger configuration.
+
 A centralized policy helper simplifies decision-making:
 
 - File: `src/utils/policy.js`

@@ -1,0 +1,29 @@
+{
+  "skip": false,
+  "description": "Issue #175 - Parameters.parameter.part[] should be populated",
+  "data": null,
+  "bindings": {},
+  "result": {
+    "resourceType": "Parameters",
+    "parameter": [
+      {
+        "name": "operation",
+        "part": [
+          {
+            "name": "op",
+            "valueCode": "replace"
+          },
+          {
+            "name": "path",
+            "valueString": "/active"
+          },
+          {
+            "name": "value",
+            "valueBoolean": true
+          }
+        ]
+      }
+    ]
+  },
+  "expr-file": "flash-eval-parameters-part.fume"
+}
