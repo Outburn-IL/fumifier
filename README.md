@@ -168,7 +168,7 @@ Severity (lower = more critical):
 
 Threshold variables (bindings) control behavior:
 - `throwLevel` (default 30): throw when severity < level
-- `logLevel` (40): log when severity < level
+- `logLevel` (40): log when severity < level (to the evaluation-environment logger set via `compiled.setLogger(...)` or `runtimeOptions.logger`)
 - `collectLevel` (70): collect into diagnostics bag when severity < level
 - `validationLevel` (30): run a validation only if its severity < level
 
