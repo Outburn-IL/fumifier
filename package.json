@@ -92,7 +92,7 @@
     "lru-cache": "^11.2.7"
   },
   "devDependencies": {
-    "@outburn/structure-navigator": "^1.9.3",
+    "@outburn/structure-navigator": "^1.9.4",
     "@outburn/types": "^0.1.0",
     "@types/json5": "^0.0.30",
     "@types/node": "^25.5.0",
