@@ -1,7 +1,6 @@
 import fumifier from '../dist/index.mjs';
 import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { readFileSync } from 'node:fs';
 
 const { expect, use } = chai;
 use(chaiAsPromised);
@@ -179,11 +178,16 @@ describe('$useFhirServer', function() {
     expect(resolverCalls).to.deep.equal([]);
   });
 
-  it('does not retain evaluator-level useFhirServer block special-casing', function() {
-    const source = readFileSync(new URL('../src/fumifier.js', import.meta.url), 'utf8');
+  it('affects later object entries when the modifier is evaluated inside the object constructor', async function() {
+    const defaultClient = createClient(1);
+    const namedClient = createClient(2);
 
-    expect(source).to.not.include('function isUseFhirServerCall');
-    expect(source).to.not.include('function evaluateUseFhirServerCall');
-    expect(source).to.not.include('activeConnection.auth');
+    const expr = await fumifier("({'switch': $useFhirServer('myConn'), 'total': $search('Patient', {}).total}).total", {
+      fhirClient: defaultClient,
+      connectionResolver: (target) => (target === 'myConn' ? namedClient : defaultClient)
+    });
+
+    const result = await expr.evaluate({});
+    expect(result).to.equal(2);
   });
 });
