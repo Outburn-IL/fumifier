@@ -140,6 +140,15 @@ class FumifierError extends Error {
  */
 
 /**
+ * @typedef FhirConnectionConfig
+ * @property {'NONE' | 'BASIC'} [authType] Optional auth mode for inline URL targets.
+ * @property {string} [username] Optional username for BASIC auth.
+ * @property {string} [password] Optional password for BASIC auth.
+ * @property {string} [fhirVersion] Optional inline FHIR version override.
+ * @property {number} [timeout] Optional inline timeout override in milliseconds.
+ */
+
+/**
  * @typedef FumifierOptions
  * @property {boolean} [recover] Attempt to recover on parse error.
  * @property {FhirStructureNavigator} [navigator] FHIR structure navigator used to resolve FLASH constructs.
@@ -148,6 +157,8 @@ class FumifierError extends Error {
  * @property {MappingCacheInterface} [mappingCache] Optional mapping repository for named expressions.
  * @property {Logger} [logger] Optional logger implementation. Defaults to console-based logger.
  * @property {FhirClient} [fhirClient] Optional FHIR client for server operations.
+ * @property {(target: string | null, config?: FhirConnectionConfig) => FhirClient} [connectionResolver]
+ *   Optional resolver used to resolve an active FHIR connection target to a client.
  * @property {Record<string, any>} [bindings] Optional variable/function bindings (no signature support for functions).
  */
 
@@ -155,6 +166,8 @@ class FumifierError extends Error {
  * @typedef RuntimeOptions
  * @property {Logger} [logger] Override logger for this evaluation only.
  * @property {FhirClient} [fhirClient] Override FHIR client for this evaluation only.
+ * @property {(target: string | null, config?: FhirConnectionConfig) => FhirClient} [connectionResolver]
+ *   Override connection resolver for this evaluation only.
  * @property {MappingCacheInterface} [mappingCache] Override mapping cache for this evaluation only.
  */
 
@@ -2439,7 +2452,19 @@ var fumifier = (function() {
    * @param {Object} env - The environment to bind FHIR client functions to
    */
   function bindFhirClientFunctions(env) {
-    const getFhirClient = (environment) => environment.lookup(Symbol.for('fumifier.__fhirClient'));
+    const getFhirClient = (environment) => {
+      const activeConnection = environment.lookup(Symbol.for('fumifier.__currentFhirServer'));
+      if (!activeConnection) {
+        return environment.lookup(Symbol.for('fumifier.__fhirClient'));
+      }
+
+      const connectionResolver = environment.lookup(Symbol.for('fumifier.__connectionResolver'));
+      if (!connectionResolver) {
+        return environment.lookup(Symbol.for('fumifier.__fhirClient'));
+      }
+
+      return connectionResolver(activeConnection.target, activeConnection.config);
+    };
     const wrappers = createFhirClientWrappers(getFhirClient);
 
     // Bind each wrapper function with its signature
@@ -2449,6 +2474,20 @@ var fumifier = (function() {
     env.bind('searchSingle', defineFunction(wrappers.searchSingle, '<s-o?o?:o>'));
     env.bind('resolve', defineFunction(wrappers.resolve, '<s-o?o?:o>'));
     env.bind('literal', defineFunction(wrappers.literal, '<s-o?o?:s>'));
+    env.bind('useFhirServer', defineFunction(function(target, config) {
+      if (typeof target === 'undefined') {
+        this.environment.bind(Symbol.for('fumifier.__currentFhirServer'), null);
+        return undefined;
+      }
+
+      if (typeof config === 'undefined') {
+        this.environment.bind(Symbol.for('fumifier.__currentFhirServer'), { target });
+        return undefined;
+      }
+
+      this.environment.bind(Symbol.for('fumifier.__currentFhirServer'), { target, config });
+      return undefined;
+    }, '<s?o?:u>'));
   }
 
   /**
@@ -2457,6 +2496,9 @@ var fumifier = (function() {
    * @param {Object} env - The environment to bind terminology functions to
    */
   function bindTerminologyFunctions(env) {
+    // Intentionally uses the terminology runtime symbol directly.
+    // $translate* and related terminology helpers must remain pinned to the
+    // default conformance source and must not use connection-scoped FHIR client selection.
     const getTerminologyRuntime = (environment) => environment.lookup(Symbol.for('fumifier.__terminologyRuntime'));
     const wrappers = createTerminologyWrappers(getTerminologyRuntime);
 
@@ -2481,6 +2523,7 @@ var fumifier = (function() {
     var mappingCache = options && options.mappingCache;
     var logger = options && options.logger;
     var fhirClient = options && options.fhirClient;
+    var connectionResolver = options && options.connectionResolver;
     var bindings = options && options.bindings;
     var compiledFhirRegex = {};
 
@@ -2555,6 +2598,9 @@ var fumifier = (function() {
     // Bind FHIR client if provided (Symbol-bound, not user-accessible)
     if (fhirClient) {
       environment.bind(Symbol.for('fumifier.__fhirClient'), fhirClient);
+    }
+    if (connectionResolver) {
+      environment.bind(Symbol.for('fumifier.__connectionResolver'), connectionResolver);
     }
     // Always bind FHIR client wrapper functions (they check for client internally)
     bindFhirClientFunctions(environment);
@@ -2655,6 +2701,9 @@ var fumifier = (function() {
               // Re-bind FHIR client functions with the runtime override
               bindFhirClientFunctions(exec_env);
             }
+            if (runtimeOptions.connectionResolver) {
+              exec_env.bind(Symbol.for('fumifier.__connectionResolver'), runtimeOptions.connectionResolver);
+            }
           }
 
           // fresh diagnostics bag per call
@@ -2694,6 +2743,9 @@ var fumifier = (function() {
             exec_env.bind(Symbol.for('fumifier.__fhirClient'), runtimeOptions.fhirClient);
             // Re-bind FHIR client functions with the runtime override
             bindFhirClientFunctions(exec_env);
+          }
+          if (runtimeOptions.connectionResolver) {
+            exec_env.bind(Symbol.for('fumifier.__connectionResolver'), runtimeOptions.connectionResolver);
           }
         }
 
