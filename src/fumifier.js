@@ -157,7 +157,7 @@ class FumifierError extends Error {
  * @property {MappingCacheInterface} [mappingCache] Optional mapping repository for named expressions.
  * @property {Logger} [logger] Optional logger implementation. Defaults to console-based logger.
  * @property {FhirClient} [fhirClient] Optional FHIR client for server operations.
- * @property {(target: string | null, config?: FhirConnectionConfig) => FhirClient} [connectionResolver]
+ * @property {(target: string, config?: FhirConnectionConfig) => FhirClient} [connectionResolver]
  *   Optional resolver used to resolve an active FHIR connection target to a client.
  * @property {Record<string, any>} [bindings] Optional variable/function bindings (no signature support for functions).
  */
@@ -166,7 +166,7 @@ class FumifierError extends Error {
  * @typedef RuntimeOptions
  * @property {Logger} [logger] Override logger for this evaluation only.
  * @property {FhirClient} [fhirClient] Override FHIR client for this evaluation only.
- * @property {(target: string | null, config?: FhirConnectionConfig) => FhirClient} [connectionResolver]
+ * @property {(target: string, config?: FhirConnectionConfig) => FhirClient} [connectionResolver]
  *   Override connection resolver for this evaluation only.
  * @property {MappingCacheInterface} [mappingCache] Override mapping cache for this evaluation only.
  */
