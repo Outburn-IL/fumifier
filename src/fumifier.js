@@ -112,7 +112,7 @@ class FumifierError extends Error {
 }
 
 /**
- * @typedef {import('@outburn/structure-navigator').FhirStructureNavigator} FhirStructureNavigator
+ * @typedef {import('@outburn/structure-navigator').FhirStructureNavigatorInterface} FhirStructureNavigatorInterface
  */
 
 /**
@@ -151,7 +151,7 @@ class FumifierError extends Error {
 /**
  * @typedef FumifierOptions
  * @property {boolean} [recover] Attempt to recover on parse error.
- * @property {FhirStructureNavigator} [navigator] FHIR structure navigator used to resolve FLASH constructs.
+ * @property {FhirStructureNavigatorInterface} [navigator] FHIR structure navigator used to resolve FLASH constructs.
  * @property {FhirTerminologyRuntime} [terminologyRuntime] FHIR terminology runtime used for valueset expansions.
  * @property {AstCacheInterface} [astCache] Optional AST cache implementation for parsed expressions. Defaults to shared LRU cache.
  * @property {MappingCacheInterface} [mappingCache] Optional mapping repository for named expressions.
@@ -2458,6 +2458,10 @@ var fumifier = (function() {
         return environment.lookup(Symbol.for('fumifier.__fhirClient'));
       }
 
+      if (activeConnection.client) {
+        return activeConnection.client;
+      }
+
       const connectionResolver = environment.lookup(Symbol.for('fumifier.__connectionResolver'));
       if (!connectionResolver) {
         return environment.lookup(Symbol.for('fumifier.__fhirClient'));
@@ -2475,17 +2479,43 @@ var fumifier = (function() {
     env.bind('resolve', defineFunction(wrappers.resolve, '<s-o?o?:o>'));
     env.bind('literal', defineFunction(wrappers.literal, '<s-o?o?:s>'));
     env.bind('useFhirServer', defineFunction(function(target, config) {
+      const currentFhirServerSymbol = Symbol.for('fumifier.__currentFhirServer');
+
       if (typeof target === 'undefined') {
-        this.environment.bind(Symbol.for('fumifier.__currentFhirServer'), null);
+        this.environment.bind(currentFhirServerSymbol, null);
         return undefined;
+      }
+
+      const connectionResolver = this.environment.lookup(Symbol.for('fumifier.__connectionResolver'));
+      if (!connectionResolver) {
+        throw new FumifierError('D3200', undefined, {
+          target,
+          stack: (new Error()).stack
+        });
+      }
+
+      let client;
+      try {
+        client = connectionResolver(target, config);
+      } catch (err) {
+        if (typeof err?.code === 'string' && /^[DSTF]/.test(err.code)) {
+          throw err;
+        }
+
+        throw new FumifierError('D3201', undefined, {
+          target,
+          sourceMessage: err?.message || String(err),
+          sourceError: err,
+          stack: err?.stack || (new Error()).stack
+        });
       }
 
       if (typeof config === 'undefined') {
-        this.environment.bind(Symbol.for('fumifier.__currentFhirServer'), { target });
+        this.environment.bind(currentFhirServerSymbol, { target, client });
         return undefined;
       }
 
-      this.environment.bind(Symbol.for('fumifier.__currentFhirServer'), { target, config });
+      this.environment.bind(currentFhirServerSymbol, { target, config, client });
       return undefined;
     }, '<s?o?:u>'));
   }
