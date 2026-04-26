@@ -209,6 +209,26 @@ describe('$useFhirServer', function() {
     }
   });
 
+  it('preserves the populated message in evaluateVerbose diagnostics for resolver failures', async function() {
+    const expr = await fumifier("$useFhirServer('public-hap')", {
+      connectionResolver: (target) => {
+        throw new Error(`Unknown FHIR connection name: "${target}"`);
+      }
+    });
+
+    const report = await expr.evaluateVerbose({});
+
+    expect(report.ok).to.equal(false);
+    expect(report.status).to.equal(422);
+    expect(report.diagnostics.error).to.have.lengthOf(1);
+    expect(report.diagnostics.error[0]).to.include({
+      code: 'D3201',
+      token: 'useFhirServer',
+      message: 'Failed to switch FHIR server to "public-hap": Unknown FHIR connection name: "public-hap"',
+      sourceMessage: 'Unknown FHIR connection name: "public-hap"'
+    });
+  });
+
   it('keeps $translateCode on terminology runtime after switching FHIR servers', async function() {
     const defaultClient = createClient(1);
     const resolverCalls = [];
