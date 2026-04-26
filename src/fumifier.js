@@ -159,6 +159,8 @@ class FumifierError extends Error {
  * @property {FhirClient} [fhirClient] Optional FHIR client for server operations.
  * @property {(target: string, config?: FhirConnectionConfig) => FhirClient} [connectionResolver]
  *   Optional resolver used to resolve an active FHIR connection target to a client.
+ * @property {string[] | (() => string[])} [namedFhirConnectionNames]
+ *   Optional list or provider for configured named FHIR connection names.
  * @property {Record<string, any>} [bindings] Optional variable/function bindings (no signature support for functions).
  */
 
@@ -168,6 +170,8 @@ class FumifierError extends Error {
  * @property {FhirClient} [fhirClient] Override FHIR client for this evaluation only.
  * @property {(target: string, config?: FhirConnectionConfig) => FhirClient} [connectionResolver]
  *   Override connection resolver for this evaluation only.
+ * @property {string[] | (() => string[])} [namedFhirConnectionNames]
+ *   Override configured named FHIR connection names for this evaluation only.
  * @property {MappingCacheInterface} [mappingCache] Override mapping cache for this evaluation only.
  */
 
@@ -2452,6 +2456,15 @@ var fumifier = (function() {
    * @param {Object} env - The environment to bind FHIR client functions to
    */
   function bindFhirClientFunctions(env) {
+    const getNamedFhirConnectionNames = (environment) => {
+      const namesOrProvider = environment.lookup(Symbol.for('fumifier.__namedFhirConnectionNames'));
+      if (typeof namesOrProvider === 'undefined' || namesOrProvider === null) {
+        return [];
+      }
+
+      const names = isFunction(namesOrProvider) ? namesOrProvider() : namesOrProvider;
+      return Array.isArray(names) ? names.slice() : [];
+    };
     const getFhirClient = (environment) => {
       const activeConnection = environment.lookup(Symbol.for('fumifier.__currentFhirServer'));
       if (!activeConnection) {
@@ -2478,6 +2491,9 @@ var fumifier = (function() {
     env.bind('searchSingle', defineFunction(wrappers.searchSingle, '<s-o?o?:o>'));
     env.bind('resolve', defineFunction(wrappers.resolve, '<s-o?o?:o>'));
     env.bind('literal', defineFunction(wrappers.literal, '<s-o?o?:s>'));
+    env.bind('fhirConnectionNames', defineFunction(function() {
+      return getNamedFhirConnectionNames(this.environment);
+    }, '<:a<s>>'));
     env.bind('useFhirServer', defineFunction(function(target, config) {
       const currentFhirServerSymbol = Symbol.for('fumifier.__currentFhirServer');
 
@@ -2554,6 +2570,8 @@ var fumifier = (function() {
     var logger = options && options.logger;
     var fhirClient = options && options.fhirClient;
     var connectionResolver = options && options.connectionResolver;
+    var hasNamedFhirConnectionNames = options && Object.prototype.hasOwnProperty.call(options, 'namedFhirConnectionNames');
+    var namedFhirConnectionNames = hasNamedFhirConnectionNames ? options.namedFhirConnectionNames : undefined;
     var bindings = options && options.bindings;
     var compiledFhirRegex = {};
 
@@ -2631,6 +2649,9 @@ var fumifier = (function() {
     }
     if (connectionResolver) {
       environment.bind(Symbol.for('fumifier.__connectionResolver'), connectionResolver);
+    }
+    if (hasNamedFhirConnectionNames) {
+      environment.bind(Symbol.for('fumifier.__namedFhirConnectionNames'), namedFhirConnectionNames);
     }
     // Always bind FHIR client wrapper functions (they check for client internally)
     bindFhirClientFunctions(environment);
@@ -2734,6 +2755,9 @@ var fumifier = (function() {
             if (runtimeOptions.connectionResolver) {
               exec_env.bind(Symbol.for('fumifier.__connectionResolver'), runtimeOptions.connectionResolver);
             }
+            if (Object.prototype.hasOwnProperty.call(runtimeOptions, 'namedFhirConnectionNames')) {
+              exec_env.bind(Symbol.for('fumifier.__namedFhirConnectionNames'), runtimeOptions.namedFhirConnectionNames);
+            }
           }
 
           // fresh diagnostics bag per call
@@ -2776,6 +2800,9 @@ var fumifier = (function() {
           }
           if (runtimeOptions.connectionResolver) {
             exec_env.bind(Symbol.for('fumifier.__connectionResolver'), runtimeOptions.connectionResolver);
+          }
+          if (Object.prototype.hasOwnProperty.call(runtimeOptions, 'namedFhirConnectionNames')) {
+            exec_env.bind(Symbol.for('fumifier.__namedFhirConnectionNames'), runtimeOptions.namedFhirConnectionNames);
           }
         }
 
