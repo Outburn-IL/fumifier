@@ -6,8 +6,17 @@ License: See the LICENSE file included with this package for the terms that appl
 */
 
 
+
+/**
+ * @typedef {import('@outburn/structure-navigator').FhirStructureNavigatorInterface} FhirStructureNavigatorInterface
+ */
+
+/**
+ * @typedef {import('fhir-terminology-runtime').FhirTerminologyRuntime} FhirTerminologyRuntime
+ */
+
 /** Takes a FHIR Structure Navigator and FHIR Terminology Runtime and returns helper functions used to fetch FHIR semantic data
- * @param {FhirStructureNavigator} navigator - FHIR structure navigator
+ * @param {FhirStructureNavigatorInterface} navigator - FHIR structure navigator
  * @param {FhirTerminologyRuntime} terminologyRuntime - FHIR terminology runtime for valueset expansions
  * @returns {Object} An object containing functions to fetch FHIR data
  * @property {Function} getElement - Function to fetch element definitions

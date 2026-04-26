@@ -13,6 +13,14 @@ import { populateMessage } from './errorCodes.js';
 import fn from './functions.js';
 
 /**
+ * @typedef {import('@outburn/structure-navigator').FhirStructureNavigatorInterface} FhirStructureNavigatorInterface
+ */
+
+/**
+ * @typedef {import('fhir-terminology-runtime').FhirTerminologyRuntime} FhirTerminologyRuntime
+ */
+
+/**
  * Centralized recoverable error handling helper.
  * @param {Object} base - base error object without position information
  * @param {Object[]} positions - Array of position containing objects pointing to the source of the error
@@ -70,7 +78,7 @@ function handleRecoverableError(base, positions, recover, errors, errObj) {
  * After parsing a Fumifier expression and running it through processAst,
  * if the expression has FLASH it will be flagged as such and passed here for FHIR definition resolution and processing.
  * @param {Object} expr - Parsed Fumifier expression
- * @param {FhirStructureNavigator} navigator - FHIR structure navigator
+ * @param {FhirStructureNavigatorInterface} navigator - FHIR structure navigator
  * @param {FhirTerminologyRuntime} terminologyRuntime - FHIR terminology runtime for valueset expansions
  * @param {boolean} recover - If true, will continue processing and collect errors instead of throwing them.
  * @param {Array} errors - Array to collect errors if recover is true

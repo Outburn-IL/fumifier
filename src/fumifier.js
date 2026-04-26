@@ -112,7 +112,7 @@ class FumifierError extends Error {
 }
 
 /**
- * @typedef {import('@outburn/structure-navigator').FhirStructureNavigator} FhirStructureNavigator
+ * @typedef {import('@outburn/structure-navigator').FhirStructureNavigatorInterface} FhirStructureNavigatorInterface
  */
 
 /**
@@ -151,7 +151,7 @@ class FumifierError extends Error {
 /**
  * @typedef FumifierOptions
  * @property {boolean} [recover] Attempt to recover on parse error.
- * @property {FhirStructureNavigator} [navigator] FHIR structure navigator used to resolve FLASH constructs.
+ * @property {FhirStructureNavigatorInterface} [navigator] FHIR structure navigator used to resolve FLASH constructs.
  * @property {FhirTerminologyRuntime} [terminologyRuntime] FHIR terminology runtime used for valueset expansions.
  * @property {AstCacheInterface} [astCache] Optional AST cache implementation for parsed expressions. Defaults to shared LRU cache.
  * @property {MappingCacheInterface} [mappingCache] Optional mapping repository for named expressions.
