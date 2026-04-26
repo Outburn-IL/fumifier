@@ -139,20 +139,77 @@ describe('$useFhirServer', function() {
     ]);
   });
 
-  it('throws when resolver cannot resolve a named connection', async function() {
+  it('throws immediately when resolver cannot resolve a named connection', async function() {
     const defaultClient = createClient(1);
 
-    const expr = await fumifier("($useFhirServer('nonExistent'); $search('Patient', {}))", {
+    const expr = await fumifier("$useFhirServer('nonExistent')", {
       fhirClient: defaultClient,
       connectionResolver: (target) => {
         throw new Error(`Unknown FHIR connection name: "${target}"`);
       }
     });
 
-    await expect(expr.evaluate({})).to.eventually.be.rejectedWith('Unknown FHIR connection name: "nonExistent"');
+    try {
+      await expr.evaluate({});
+      expect.fail('Expected evaluation to reject');
+    } catch (err) {
+      expect(err.code).to.equal('D3201');
+      expect(err.token).to.equal('useFhirServer');
+      expect(err.message).to.equal('Failed to switch FHIR server to "nonExistent": Unknown FHIR connection name: "nonExistent"');
+    }
   });
 
-  it('keeps $translateCode on terminology runtime and does not use connection resolver', async function() {
+  it('throws when a target is provided without a connection resolver', async function() {
+    const expr = await fumifier("$useFhirServer('nonExistent')");
+
+    try {
+      await expr.evaluate({});
+      expect.fail('Expected evaluation to reject');
+    } catch (err) {
+      expect(err.code).to.equal('D3200');
+      expect(err.token).to.equal('useFhirServer');
+      expect(err.message).to.equal('Cannot switch FHIR server to "nonExistent": connection resolver is not configured.');
+    }
+  });
+
+  it('resolves once at $useFhirServer and reuses the stored client for later FHIR helpers', async function() {
+    const defaultClient = createClient(1);
+    const namedClient = createClient(2);
+    const resolverCalls = [];
+
+    const expr = await fumifier("($useFhirServer('myConn'); [$search('Patient', {}).total, $capabilities().resourceType])", {
+      fhirClient: defaultClient,
+      connectionResolver: (target, config) => {
+        resolverCalls.push({ target, config });
+        return namedClient;
+      }
+    });
+
+    const result = await expr.evaluate({});
+
+    expect(result).to.deep.equal([2, 'CapabilityStatement']);
+    expect(resolverCalls).to.deep.equal([{ target: 'myConn', config: undefined }]);
+  });
+
+  it('wraps plain resolver failures with D3201 details', async function() {
+    const expr = await fumifier("$useFhirServer('myConn')", {
+      connectionResolver: () => {
+        throw new Error('boom');
+      }
+    });
+
+    try {
+      await expr.evaluate({});
+      expect.fail('Expected evaluation to reject');
+    } catch (err) {
+      expect(err.code).to.equal('D3201');
+      expect(err.token).to.equal('useFhirServer');
+      expect(err.message).to.equal('Failed to switch FHIR server to "myConn": boom');
+      expect(err.sourceMessage).to.equal('boom');
+    }
+  });
+
+  it('keeps $translateCode on terminology runtime after switching FHIR servers', async function() {
     const defaultClient = createClient(1);
     const resolverCalls = [];
     const terminologyRuntime = {
@@ -175,7 +232,7 @@ describe('$useFhirServer', function() {
 
     const result = await expr.evaluate({});
     expect(result).to.equal('mapped-code');
-    expect(resolverCalls).to.deep.equal([]);
+    expect(resolverCalls).to.deep.equal([{ target: 'myConn', config: undefined }]);
   });
 
   it('affects later object entries when the modifier is evaluated inside the object constructor', async function() {
