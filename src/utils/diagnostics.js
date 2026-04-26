@@ -160,6 +160,9 @@ export function push(env, entry) {
 
   // sanitize entry: remove stack from collected diagnostics
   const rest = { ...(entry || {}) };
+  if (entry instanceof Error || (typeof entry?.message === 'string' && !Object.prototype.hasOwnProperty.call(rest, 'message'))) {
+    rest.message = entry.message;
+  }
   if (Object.prototype.hasOwnProperty.call(rest, 'stack')) delete rest.stack;
 
   // dedupe: ensure we don't collect identical diagnostics multiple times
