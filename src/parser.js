@@ -588,12 +588,13 @@ const parser = (() => {
         }
         var rule = expression(0, true);
         if (recover && (rule.type === '(error)' || rule.type === 'error')) {
+          var err = rule.error || rule;
           rules.push({
             type: 'error',
-            error: rule.error || rule,
-            position: rule.position,
-            start: rule.start,
-            line: rule.line
+            error: err,
+            position: err.position,
+            start: err.start,
+            line: err.line
           });
           if (node.id === ';') advance();
           if (node.id !== "(indent)" || node.value !== level) {
