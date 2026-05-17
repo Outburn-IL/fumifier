@@ -9,11 +9,13 @@ import assert from 'assert';
 describe('Browser Entry Point', function() {
   let browserModuleEsm;
   let browserModuleCjs;
+  let mainModuleCjs;
 
   before(async function() {
     // Load both ES Module and CommonJS versions
     const require = createRequire(import.meta.url);
     browserModuleCjs = require('../dist/browser.cjs');
+    mainModuleCjs = require('../dist/index.cjs');
     browserModuleEsm = await import('../dist/browser.mjs');
   });
 
@@ -35,6 +37,20 @@ describe('Browser Entry Point', function() {
       assert(typeof cjsApi.parse === 'function', 'CommonJS should have parse function');
       assert(typeof cjsApi.validate === 'function', 'CommonJS should have validate function');
       assert(typeof cjsApi.tokenize === 'function', 'CommonJS should have tokenize function');
+    });
+
+    it('should expose parsing functions as named properties from the CommonJS browser bundle', function() {
+      assert.equal(typeof browserModuleCjs.parse, 'function', 'CommonJS browser bundle should expose parse');
+      assert.equal(typeof browserModuleCjs.validate, 'function', 'CommonJS browser bundle should expose validate');
+      assert.equal(typeof browserModuleCjs.tokenize, 'function', 'CommonJS browser bundle should expose tokenize');
+    });
+
+    it('should expose FumifierError from the CommonJS main bundle', function() {
+      assert.equal(typeof mainModuleCjs, 'function', 'CommonJS main bundle should expose the fumifier function');
+      assert.equal(typeof mainModuleCjs.FumifierError, 'function',
+        'CommonJS main bundle should expose the FumifierError constructor');
+      assert(Object.prototype.hasOwnProperty.call(mainModuleCjs, 'FumifierError'),
+        'CommonJS main bundle should expose FumifierError as an own property');
     });
   });
 
