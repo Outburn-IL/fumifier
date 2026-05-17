@@ -26,7 +26,7 @@ describe('AST Mobility Feature', function() {
 
     // Create FhirTerminologyRuntime with shared FPE
     terminologyRuntime = await FhirTerminologyRuntime.create({ fpe });
-  }, 720000); // 12 minutes
+  });
 
   it('should create fumifier object from AST JSON', async function() {
     // Create original expression
