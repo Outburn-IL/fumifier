@@ -102,6 +102,7 @@ export default [
     languageOptions: sharedLanguageOptions,
     rules: {
       ...sharedRules,
+      'jsdoc/require-jsdoc': 'off',
       'strict': ['error', 'global'], // Override: global instead of function
     },
   },
