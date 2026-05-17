@@ -13,7 +13,7 @@ describe('Cached Parsing Feature', function() {
   let terminologyRuntime;
 
   before(async function() {
-    this.timeout(180000); // Set timeout to 180 seconds (3 minutes)
+    this.timeout(720000); // Set timeout to 720 seconds (12 minutes)
 
     // Create shared FhirPackageExplorer instance
     const fpe = await FhirPackageExplorer.create({

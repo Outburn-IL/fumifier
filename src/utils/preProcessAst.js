@@ -78,6 +78,17 @@ function processFlashBlock(node) {
  *    has an inline expression and/or sub-rules → becomes an array of expressions
  */
 function processFlashRule(node) {
+  if (node.path?.type === '(error)' || node.path?.type === 'error') {
+    const error = node.path.error || node.path;
+    return {
+      type: 'error',
+      error,
+      position: error.position,
+      start: error.start,
+      line: error.line
+    };
+  }
+
   const result = { ...node };
   result.type = 'unary';
   result.value = '[';

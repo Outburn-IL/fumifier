@@ -49,6 +49,7 @@ const parser = (() => {
      * When off, indent tokens are ignored entirely and regular JSONata mode is used where indents are not significant.
      */
     var indentAwareMode = false;
+    var parsingFlashInlineExpression = false;
 
     /**
      * Every token, such as an operator or identifier, will inherit from a symbol.
@@ -586,6 +587,22 @@ const parser = (() => {
           }
         }
         var rule = expression(0, true);
+        if (recover && (rule.type === '(error)' || rule.type === 'error')) {
+          var err = rule.error || rule;
+          rules.push({
+            type: 'error',
+            error: err,
+            position: err.position,
+            start: err.start,
+            line: err.line
+          });
+          if (node.id === ';') advance();
+          if (node.id !== "(indent)" || node.value !== level) {
+            break;
+          }
+          advance("(indent)");
+          continue;
+        }
         // ensure expression is either a flashrule or a bind rule
         if (rule.type !== 'flashrule' && rule.id !== ':=') {
           if (rule.id === '=') {
@@ -797,6 +814,10 @@ const parser = (() => {
     // field wildcard (single level) OR flash rule
     prefix('*', function () {
       var { position, line, start } = this;
+      if (indentAwareMode && parsingFlashInlineExpression) {
+        this.type = 'wildcard';
+        return this;
+      }
       if (indentAwareMode) {
         // a flash rule node will have:
         // - type: 'flashrule'
@@ -811,10 +832,18 @@ const parser = (() => {
           advance(".", true);
         }
         this.path = parseFlashPath();
+        if (recover && (this.path.type === '(error)' || this.path.type === 'error')) {
+          return this.path;
+        }
         if (node.id === '=') {
           advance('=');
           if (node.id !== '(end)' && node.id !== '(indent)') {
-            this.inlineExpression = expression(0);
+            parsingFlashInlineExpression = true;
+            try {
+              this.inlineExpression = expression(0);
+            } finally {
+              parsingFlashInlineExpression = false;
+            }
             // Allow optional trailing semicolon after inline expression for backwards compatibility
             if (node.id === ';') {
               var semicolonLine = node.line;

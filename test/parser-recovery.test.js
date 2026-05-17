@@ -1,6 +1,10 @@
 import fumifier from '../dist/index.mjs';
 import assert from 'assert';
-import { expect } from 'chai';
+import * as chai from 'chai';
+import chaiAsPromised from 'chai-as-promised';
+
+const { expect, use } = chai;
+use(chaiAsPromised);
 
 describe('Invoke parser with valid expression', function() {
   describe('Account.Order[0]', function() {

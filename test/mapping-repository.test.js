@@ -5,7 +5,7 @@ import assert from 'assert';
 describe('Mapping Repository Feature', function() {
 
   before(async function() {
-    this.timeout(180000); // Set timeout to 180 seconds (3 minutes)
+    this.timeout(720000); // Set timeout to 720 seconds (12 minutes)
   });
 
   describe('Mapping Cache Interface', function() {

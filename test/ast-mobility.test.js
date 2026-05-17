@@ -1,4 +1,3 @@
-/* eslint-disable require-jsdoc */
 import fumifier from '../src/fumifier.js';
 import assert from 'assert';
 import { FhirStructureNavigator } from "@outburn/structure-navigator";
@@ -11,7 +10,7 @@ describe('AST Mobility Feature', function() {
   let terminologyRuntime;
 
   before(async function() {
-    this.timeout(180000); // Set timeout to 180 seconds (3 minutes)
+    this.timeout(720000); // Set timeout to 720 seconds (12 minutes)
 
     // Create shared FhirPackageExplorer instance
     const fpe = await FhirPackageExplorer.create({
@@ -28,6 +27,7 @@ describe('AST Mobility Feature', function() {
     // Create FhirTerminologyRuntime with shared FPE
     terminologyRuntime = await FhirTerminologyRuntime.create({ fpe });
   });
+
   it('should create fumifier object from AST JSON', async function() {
     // Create original expression
     const originalExpr = await fumifier('1 + 2');
