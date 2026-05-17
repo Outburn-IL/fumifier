@@ -39,6 +39,7 @@
     "pretest": "npm run build:for-tests",
     "mocha": "c8 mocha test/**/*.test.js --timeout=20000",
     "test": "npm run mocha",
+    "test:coldstart": "rimraf test/.test-cache && npm run test",
     "test:flash": "npm run build:for-tests && c8 mocha test/run-test-suite.test.js --timeout=20000 -- --flash-only",
     "test:policy": "npm run build:for-tests && c8 mocha test/verbose-policy.test.js --timeout=20000",
     "check-coverage": "c8 check-coverage --statements 94 --branches 90 --functions 94 --lines 94",
