@@ -86,6 +86,19 @@ describe('FLASH parser hardening regression', function() {
     assert.equal(ast.errors, undefined);
   });
 
+  it('should preserve error locations for malformed FLASH rules in recover=true mode', function() {
+    const ast = parse(malformedDoubleStarExpression, true);
+    const malformedWildcardStart = malformedDoubleStarExpression.lastIndexOf('*');
+
+    assert(ast, 'Expected recover=true parsing to return an AST');
+    assert(Array.isArray(ast.errors), 'Expected malformed recover-mode parse to attach errors');
+    assert.equal(ast.errors.length, 1, 'Expected a single malformed rule error');
+    assert.equal(ast.errors[0].code, 'F1022');
+    assert.equal(ast.errors[0].line, 3);
+    assert.equal(ast.errors[0].position, malformedWildcardStart + 1);
+    assert.equal(ast.errors[0].start, malformedWildcardStart);
+  });
+
   it('should validate the unwrapped expression as valid', function() {
     const result = validate(issueExpression);
 
