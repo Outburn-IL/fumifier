@@ -468,6 +468,37 @@ const parser = (() => {
       return s;
     };
 
+    const missingRhsTerminatorIds = new Set(['(end)', ')', ']', '}', ';', ',', '(indent)', '(instanceof)', 'Instance:']);
+
+    var missingRhsError = function (operatorToken) {
+      var err = {
+        code: 'S0218',
+        token: operatorToken.value,
+        position: operatorToken.position,
+        start: operatorToken.start,
+        line: operatorToken.line
+      };
+
+      if (recover) {
+        errors.push(err);
+        return {
+          type: 'error',
+          error: err
+        };
+      }
+
+      err.stack = (new Error()).stack;
+      throw err;
+    };
+
+    var parseRequiredRhs = function (operatorToken, bindingPower) {
+      if (missingRhsTerminatorIds.has(node.id)) {
+        return missingRhsError(operatorToken);
+      }
+
+      return expression(bindingPower);
+    };
+
     terminal("(end)");
     terminal("(name)");
     terminal("(literal)");
@@ -481,7 +512,12 @@ const parser = (() => {
     infix("+"); // numeric addition
     infix("-"); // numeric subtraction
     infix("*"); // numeric multiplication
-    infix("/"); // numeric division
+    infix("/", operators['/'], function (left) {
+      this.lhs = left;
+      this.rhs = parseRequiredRhs(this, operators['/']);
+      this.type = "binary";
+      return this;
+    }); // numeric division
     infix("="); // equality OR assignment in FLASH rules (inline value assignment)
     infix("<"); // less than
     infix(">"); // greater than
@@ -1495,7 +1531,7 @@ const parser = (() => {
         });
       }
       this.lhs = left;
-      this.rhs = expression(operators[':='] - 1); // subtract 1 from bindingPower for right associative operators
+      this.rhs = parseRequiredRhs(this, operators[':='] - 1); // subtract 1 from bindingPower for right associative operators
       this.type = "binary";
       return this;
     });
