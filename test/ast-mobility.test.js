@@ -34,6 +34,19 @@ function findNodeByType(value, type) {
   return null;
 }
 
+function simplifyRegexMatch(result) {
+  if (!result) {
+    return result;
+  }
+
+  return {
+    match: result.match,
+    start: result.start,
+    end: result.end,
+    groups: result.groups
+  };
+}
+
 describe('AST Mobility Feature', function() {
   let navigator;
   let terminologyRuntime;
@@ -235,8 +248,11 @@ describe('AST Mobility Feature', function() {
     const originalResult = await originalExpr.evaluate({});
     const recreatedResult = await recreatedExpr.evaluate({});
 
-    assert.deepEqual(recreatedResult, originalResult);
-    assert.deepEqual(recreatedResult, { match: 'Ab', start: 0, end: 2, groups: ['b'] });
+    assert.deepEqual(simplifyRegexMatch(recreatedResult), simplifyRegexMatch(originalResult));
+    assert.deepEqual(simplifyRegexMatch(recreatedResult), { match: 'Ab', start: 0, end: 2, groups: ['b'] });
+    assert.equal(typeof originalResult.next, 'function');
+    assert.equal(typeof recreatedResult.next, 'function');
+    assert.deepEqual(simplifyRegexMatch(recreatedResult.next()), simplifyRegexMatch(originalResult.next()));
   });
 
   it('should handle AST with errors (recovery mode)', async function() {
