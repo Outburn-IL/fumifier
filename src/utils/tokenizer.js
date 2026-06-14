@@ -37,10 +37,11 @@ export default function (path) {
   /**
      * Creates a token object with type, value, and position.
      * @param {string} type - The type of the token (e.g., 'operator', 'string', 'number', 'name').
-     * @param {string|number|RegExp} value - The value of the token.
+     * @param {string|number|boolean|null} value - The value of the token.
+     * @param {object} [extraProps] - Optional extra token properties.
      * @returns {object} A token object containing type, value, and the current position.
      */
-  var create = function (type, value) {
+  var create = function (type, value, extraProps) {
     var obj = {
       type,
       value,
@@ -48,17 +49,18 @@ export default function (path) {
       start,              // start position (added for better error marking in FUME)
       line                // line number (added for clear error reporting in FUME)
     };
+    if (extraProps) {
+      Object.assign(obj, extraProps);
+    }
     previousToken = obj;
     return obj;
   };
 
-  var scanRegex = function () {
+  var scanRegex = function (literalStart) {
     // the prefix '/' will have been previously scanned. Find the end of the regex.
     // search for closing '/' ignoring any that are escaped, or within brackets
-    start = position;
+    var patternStart = position;
     var depth = 0;
-    var pattern;
-    var flags;
 
     var isClosingSlash = function (position) {
       if (path.charAt(position) === '/' && depth === 0) {
@@ -77,17 +79,20 @@ export default function (path) {
       var currentChar = path.charAt(position);
       if (isClosingSlash(position)) {
         // end of regex found
-        pattern = path.substring(start, position);
+        var pattern = path.substring(patternStart, position);
         position++;
         currentChar = path.charAt(position);
         // flags
-        start = position;
+        var flagsStart = position;
         while (currentChar === 'i' || currentChar === 'm') {
           position++;
           currentChar = path.charAt(position);
         }
-        flags = path.substring(start, position) + 'g';
-        return new RegExp(pattern, flags);
+        return {
+          value: pattern,
+          flags: path.substring(flagsStart, position) + 'g',
+          start: literalStart
+        };
       }
       if ((currentChar === '(' || currentChar === '[' || currentChar === '{') && path.charAt(position - 1) !== '\\') {
         depth++;
@@ -102,7 +107,7 @@ export default function (path) {
       code: "S0302",
       stack: (new Error()).stack,
       position,
-      start,
+      start: literalStart,
       line
     };
   };
@@ -299,8 +304,13 @@ export default function (path) {
     }
     // test for regex
     if (hasLeftContext !== true && currentChar === '/') {
+      var literalStart = position;
       position++;
-      return create('regex', scanRegex());
+      var regexToken = scanRegex(literalStart);
+      return create('regex', regexToken.value, {
+        flags: regexToken.flags,
+        start: regexToken.start
+      });
     }
     // handle double-char operators
     if (currentChar === '.' && path.charAt(position + 1) === '.') {
