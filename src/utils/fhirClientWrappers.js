@@ -7,6 +7,7 @@ License: See the LICENSE file included with this package for the terms that appl
 
 import createPolicy from './policy.js';
 import { populateMessage } from './errorCodes.js';
+import { attachSourceErrorMetadata } from './diagnostics.js';
 
 /**
  * Creates user-facing wrapper functions for FHIR client operations.
@@ -15,6 +16,39 @@ import { populateMessage } from './errorCodes.js';
  * @returns {Object} Object containing wrapper functions
  */
 function createFhirClientWrappers(getFhirClient) {
+  /**
+   * Extract a concrete resource identity from a literal reference or normalized request metadata.
+   * @param {string} resourceTypeOrRef - Resource type or literal reference.
+   * @param {any} err - Error thrown by the FHIR client layer.
+   * @returns {{resourceType:string, resourceId:string}|undefined} Safe resource identity when available.
+   */
+  function getResourceIdentity(resourceTypeOrRef, err) {
+    if (typeof resourceTypeOrRef === 'string') {
+      const [resourceType, resourceId] = resourceTypeOrRef.split('/');
+      if (resourceType && resourceId) {
+        return { resourceType, resourceId };
+      }
+    }
+
+    if (typeof err?.request?.resourceType === 'string' && typeof err?.request?.id === 'string' && err.request.resourceType && err.request.id) {
+      return {
+        resourceType: err.request.resourceType,
+        resourceId: err.request.id
+      };
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Read an HTTP-like status from either normalized FHIR client errors or legacy Axios-shaped errors.
+   * @param {any} err - Error thrown by the FHIR client layer.
+   * @returns {number|undefined} HTTP status when available.
+   */
+  function getErrorStatus(err) {
+    return typeof err?.status === 'number' ? err.status : err?.response?.status;
+  }
+
   /**
    * Helper to handle errors through policy system
    * Respects throwLevel to decide whether to throw or return undefined
@@ -45,55 +79,52 @@ function createFhirClientWrappers(getFhirClient) {
    */
   function handleFhirClientError(err, operationName, resourceTypeOrRef, params, environment) {
     // Check for 404 errors
-    if (err.response && err.response.status === 404) {
-      const ref = resourceTypeOrRef;
-      const [resourceType, resourceId] = ref.split('/');
-      return handleError({
-        code: 'F5210',
-        resourceType,
-        resourceId,
-        stack: err.stack || (new Error()).stack,
-        sourceError: err
-      }, environment);
+    if (getErrorStatus(err) === 404) {
+      const identity = getResourceIdentity(resourceTypeOrRef, err);
+      if (identity) {
+        return handleError(attachSourceErrorMetadata({
+          code: 'F5210',
+          resourceType: identity.resourceType,
+          resourceId: identity.resourceId,
+          stack: err.stack || (new Error()).stack
+        }, err), environment);
+      }
     }
 
     // Check for "No resources found" errors
-    if (err.message && err.message.includes('No resources found')) {
+    if (err.message && (err.message.includes('No resources found') || err.message.includes('Search returned no match'))) {
       const resourceType = typeof params === 'object' ? resourceTypeOrRef : resourceTypeOrRef.split('/')[0];
       const searchParams = typeof params === 'object' ? params : {};
-      return handleError({
+      return handleError(attachSourceErrorMetadata({
         code: 'F5211',
         resourceType,
         searchParams: JSON.stringify(searchParams),
-        stack: err.stack || (new Error()).stack,
-        sourceError: err
-      }, environment);
+        stack: err.stack || (new Error()).stack
+      }, err), environment);
     }
 
     // Check for "Multiple resources found" errors
-    if (err.message && err.message.includes('Multiple resources found')) {
+    if (err.message && (err.message.includes('Multiple resources found') || err.message.includes('Search returned multiple matches'))) {
       const resourceType = typeof params === 'object' ? resourceTypeOrRef : resourceTypeOrRef.split('/')[0];
       const searchParams = typeof params === 'object' ? params : {};
-      const match = err.message.match(/\((\d+) found\)/);
+      const match = err.message.match(/\((\d+)(?: found)?\)/);
       const resultCount = match ? match[1] : 'multiple';
-      return handleError({
+      return handleError(attachSourceErrorMetadata({
         code: 'F5212',
         resourceType,
         searchParams: JSON.stringify(searchParams),
         resultCount,
-        stack: err.stack || (new Error()).stack,
-        sourceError: err
-      }, environment);
+        stack: err.stack || (new Error()).stack
+      }, err), environment);
     }
 
     // Generic FHIR client error
-    return handleError({
+    return handleError(attachSourceErrorMetadata({
       code: 'F5203',
       operation: operationName,
       errorMessage: err.message || String(err),
-      stack: err.stack || (new Error()).stack,
-      sourceError: err
-    }, environment);
+      stack: err.stack || (new Error()).stack
+    }, err), environment);
   }
 
   /**
@@ -131,39 +162,36 @@ function createFhirClientWrappers(getFhirClient) {
       } catch (err) {
         // Check if it's a timeout error
         if (err.name === 'AbortError' || (err.message && err.message.includes('timeout'))) {
-          return handleError({
+          return handleError(attachSourceErrorMetadata({
             code: 'F5202',
             operation: operationName,
             timeout: client.config?.timeout || 30000,
-            stack: err.stack || (new Error()).stack,
-            sourceError: err
-          }, this.environment);
+            stack: err.stack || (new Error()).stack
+          }, err), this.environment);
         }
 
         // Check for resource not found (404)
-        if (err.response && err.response.status === 404) {
+        if (getErrorStatus(err) === 404) {
           // Try to extract resource type and ID from error or args
           const resourceType = args[0];
           const resourceId = args[1];
           if (resourceType && resourceId) {
-            return handleError({
+            return handleError(attachSourceErrorMetadata({
               code: 'F5210',
               resourceType,
               resourceId,
-              stack: err.stack || (new Error()).stack,
-              sourceError: err
-            }, this.environment);
+              stack: err.stack || (new Error()).stack
+            }, err), this.environment);
           }
         }
 
         // Generic FHIR client error
-        return handleError({
+        return handleError(attachSourceErrorMetadata({
           code: 'F5203',
           operation: operationName,
           errorMessage: err.message || String(err),
-          stack: err.stack || (new Error()).stack,
-          sourceError: err
-        }, this.environment);
+          stack: err.stack || (new Error()).stack
+        }, err), this.environment);
       }
     };
   }
