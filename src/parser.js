@@ -58,6 +58,22 @@ const parser = (() => {
     var symbol_table = {};
     var errors = [];
 
+    var toSimpleToken = function (token) {
+      var simpleToken = {
+        type: token.type,
+        value: token.value,
+        position: token.position,
+        line: token.line,
+        start: token.start
+      };
+
+      if (Object.prototype.hasOwnProperty.call(token, 'flags')) {
+        simpleToken.flags = token.flags;
+      }
+
+      return simpleToken;
+    };
+
     var tokenLeavesLeftContext = function(token) {
       if (!token) {
         return false;
@@ -83,12 +99,12 @@ const parser = (() => {
       var remaining = [];
       var hasLeftContext = false;
       if (node.id !== '(end)') {
-        remaining.push({type: node.type, value: node.value, position: node.position, line: node.line, start: node.start});
+        remaining.push(toSimpleToken(node));
         hasLeftContext = tokenLeavesLeftContext(node);
       }
       var nxt = lexer.next(hasLeftContext);
       while (nxt !== null) {
-        remaining.push(nxt);
+        remaining.push(toSimpleToken(nxt));
         hasLeftContext = tokenLeavesLeftContext(nxt);
         nxt = lexer.next(hasLeftContext);
       }
@@ -328,6 +344,9 @@ const parser = (() => {
       node.position = next_token.position;
       node.start = next_token.start;
       node.line = next_token.line;
+      if (Object.prototype.hasOwnProperty.call(next_token, 'flags')) {
+        node.flags = next_token.flags;
+      }
       return node;
     };
 
