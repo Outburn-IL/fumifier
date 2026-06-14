@@ -191,6 +191,22 @@ describe('Browser Entry Point', function() {
       assert(tokens.length > 0, 'Should return tokens');
       assert(tokens[0].type === 'regex', 'First token should be a regex literal');
     });
+
+    it('should preserve regex token coordinates in browser tokenization', function() {
+      const { tokenize } = browserModuleEsm;
+      const tokens = tokenize('/foo/im');
+
+      assert(Array.isArray(tokens), 'Should return an array');
+      assert.equal(tokens.length, 1, 'Standalone regex should be emitted as a single token');
+      assert.deepEqual(tokens[0], {
+        type: 'regex',
+        value: 'foo',
+        flags: 'img',
+        start: 0,
+        end: 7,
+        line: 1
+      });
+    });
   });
 
   describe('Browser Isolation', function() {
