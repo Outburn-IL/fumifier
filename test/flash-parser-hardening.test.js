@@ -57,7 +57,7 @@ function findFirstBindExpression(node) {
     return undefined;
   }
 
-  if (node.type === 'binary' && node.value === ':=') {
+  if (node.type === 'bind') {
     return node;
   }
 
