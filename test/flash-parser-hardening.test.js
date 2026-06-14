@@ -18,6 +18,16 @@ const parenthesizedControlExpression = `InstanceOf: Patient
     * ({'k': $}).extension[http://hl7.org/fhir/StructureDefinition/iso21090-ADXP-streetName]
       * valueString = (*)`;
 
+const issue84Expression = `InstanceOf: Patient
+* ({'a': 'b'}).identifier
+  $value := *;
+  * value = $value`;
+
+const issue84ParenthesizedControlExpression = `InstanceOf: Patient
+* ({'a': 'b'}).identifier
+  $value := (*);
+  * value = $value`;
+
 const malformedDoubleStarExpression = `InstanceOf: Patient
 * address
   * * valueString = 'x'`;
@@ -40,6 +50,34 @@ function findInlineWildcards(node, found = []) {
   }
 
   return found;
+}
+
+function findFirstBindExpression(node) {
+  if (!node || typeof node !== 'object') {
+    return undefined;
+  }
+
+  if (node.type === 'binary' && node.value === ':=') {
+    return node;
+  }
+
+  for (const value of Object.values(node)) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const found = findFirstBindExpression(item);
+        if (found) {
+          return found;
+        }
+      }
+    } else {
+      const found = findFirstBindExpression(value);
+      if (found) {
+        return found;
+      }
+    }
+  }
+
+  return undefined;
 }
 
 describe('FLASH parser hardening regression', function() {
@@ -86,6 +124,32 @@ describe('FLASH parser hardening regression', function() {
     assert.equal(ast.errors, undefined);
   });
 
+  it('should parse bare wildcard variable assignments successfully when recover=false', function() {
+    const ast = parse(issue84Expression, false);
+
+    assert(ast, 'Expected the unwrapped wildcard variable assignment to parse');
+    assert.equal(ast.containsFlash, true, 'Expected FLASH syntax to be detected');
+    assert.equal(ast.errors, undefined);
+  });
+
+  it('should also parse bare wildcard variable assignments in recover=true mode without attaching errors', function() {
+    const ast = parse(issue84Expression, true);
+
+    assert(ast, 'Expected recover=true parsing to return an AST for the wildcard variable assignment');
+    assert.equal(ast.errors, undefined);
+  });
+
+  it('should produce a wildcard RHS for the bare := assignment', function() {
+    const ast = parse(issue84Expression, false);
+    const bindExpression = findFirstBindExpression(ast);
+
+    assert(bindExpression, 'Expected to find a := binding in the parsed AST');
+    assert.equal(bindExpression.rhs.type, 'wildcard');
+    assert.equal(bindExpression.rhs.line, 3);
+    assert.equal(typeof bindExpression.rhs.position, 'number');
+    assert(bindExpression.rhs.position >= issue84Expression.indexOf('$value := *;'));
+  });
+
   it('should preserve error locations for malformed FLASH rules in recover=true mode', function() {
     const ast = parse(malformedDoubleStarExpression, true);
     const malformedWildcardStart = malformedDoubleStarExpression.lastIndexOf('*');
@@ -101,6 +165,14 @@ describe('FLASH parser hardening regression', function() {
 
   it('should validate the unwrapped expression as valid', function() {
     const result = validate(issueExpression);
+
+    assert.equal(result.isValid, true);
+    assert(Array.isArray(result.errors), 'Expected validate() to return an errors array');
+    assert.equal(result.errors.length, 0);
+  });
+
+  it('should validate the wildcard variable assignment expression as valid', function() {
+    const result = validate(issue84Expression);
 
     assert.equal(result.isValid, true);
     assert(Array.isArray(result.errors), 'Expected validate() to return an errors array');
@@ -125,6 +197,13 @@ describe('FLASH parser hardening regression', function() {
     assert.equal(ast.containsFlash, true, 'Expected FLASH syntax to be detected');
   });
 
+  it('should still parse the parenthesized wildcard variable assignment workaround', function() {
+    const ast = parse(issue84ParenthesizedControlExpression, false);
+
+    assert(ast, 'Expected the parenthesized wildcard variable assignment control to parse');
+    assert.equal(ast.containsFlash, true, 'Expected FLASH syntax to be detected');
+  });
+
   it('should evaluate the unwrapped and parenthesized expressions to the same Patient output', async function() {
     const unwrapped = await fumifier(issueExpression, { navigator, terminologyRuntime });
     const wrapped = await fumifier(parenthesizedControlExpression, { navigator, terminologyRuntime });
@@ -140,5 +219,19 @@ describe('FLASH parser hardening regression', function() {
       unwrappedResult.address[0]._line[0].extension[0].valueString,
       unwrappedResult.address[0].line[0]
     );
+  });
+
+  it('should evaluate the unwrapped and parenthesized wildcard variable assignments to the same Patient output', async function() {
+    const unwrapped = await fumifier(issue84Expression, { navigator, terminologyRuntime });
+    const wrapped = await fumifier(issue84ParenthesizedControlExpression, { navigator, terminologyRuntime });
+
+    const unwrappedResult = await unwrapped.evaluate({});
+    const wrappedResult = await wrapped.evaluate({});
+
+    assert.deepEqual(unwrappedResult, wrappedResult);
+    assert.equal(unwrappedResult.resourceType, 'Patient');
+    assert(Array.isArray(unwrappedResult.identifier), 'Expected an identifier array in the evaluation result');
+    assert.equal(unwrappedResult.identifier.length, 1);
+    assert.equal(unwrappedResult.identifier[0].value, 'b');
   });
 });
