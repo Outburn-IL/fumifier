@@ -58,15 +58,39 @@ const parser = (() => {
     var symbol_table = {};
     var errors = [];
 
+    var tokenLeavesLeftContext = function(token) {
+      if (!token) {
+        return false;
+      }
+
+      switch (token.type) {
+        case 'name':
+        case 'variable':
+        case 'number':
+        case 'string':
+        case 'value':
+        case 'regex':
+        case 'url':
+          return true;
+        case 'operator':
+          return token.value === ')' || token.value === ']' || token.value === '}';
+        default:
+          return false;
+      }
+    };
+
     var remainingTokens = function () {
       var remaining = [];
+      var hasLeftContext = false;
       if (node.id !== '(end)') {
         remaining.push({type: node.type, value: node.value, position: node.position, line: node.line, start: node.start});
+        hasLeftContext = tokenLeavesLeftContext(node);
       }
-      var nxt = lexer.next();
+      var nxt = lexer.next(hasLeftContext);
       while (nxt !== null) {
         remaining.push(nxt);
-        nxt = lexer.next();
+        hasLeftContext = tokenLeavesLeftContext(nxt);
+        nxt = lexer.next(hasLeftContext);
       }
       return remaining;
     };
@@ -150,10 +174,10 @@ const parser = (() => {
          * to the token variable.
          * It can take an optional id parameter which it can check against the id of the previous token.
          * @param {string} id checked against the id of the previous token
-         * @param {boolean} infix
+        * @param {boolean} hasLeftContext true when the next token has something to its left
          * @returns token (node)
          */
-    var advance = function (id, infix) {
+    var advance = function (id, hasLeftContext) {
       // In Crockford's implementation, we assume that the source text has been transformed into an array of simple token
       // objects (tokens), each containing a type (string) and a value (string or number).
       // In this implementation, the token array is built as we go, and the next token is returned by the lexer (next() function)
@@ -198,7 +222,7 @@ const parser = (() => {
         indent = node.value; // Set to previous node's line
       }
       /** Fetch next simple token from the scanner */
-      var next_token = lexer.next(infix);
+      var next_token = lexer.next(hasLeftContext);
       if (next_token === null) {
         // When the scanner has no more tokens to consume from the source it returns null
         // So we create an (end) token and return it, but not before we override the node variable
@@ -220,7 +244,7 @@ const parser = (() => {
           node.type === 'instance'
         );
         if (!previousStartsFlashBlock) {
-          next_token = lexer.next(infix);
+          next_token = lexer.next(hasLeftContext);
         }
       }
       /** Start preparing the processed token to return and override the `node` var with */
@@ -270,7 +294,7 @@ const parser = (() => {
           // var indentSymbol = symbol_table["(indent)"];
           var indentValue = next_token.value; // this is the indent number
           // go to next token
-          next_token = lexer.next(infix);
+          next_token = lexer.next(hasLeftContext);
           /* c8 ignore else */
           if (next_token.type === 'operator' && next_token.value === 'Instance:') {
             // It's a FLASH Instance: delaration

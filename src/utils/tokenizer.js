@@ -133,16 +133,14 @@ export default function (path) {
   /**
      * Advances to the next simple token and returns it.
      * This is entirely sequential - no nesting and operator precedence logic is done here
-     * @param {boolean} prefix - This essentially tells the scanner that the next token is going to be
-     *      used as a prefix - the beginning of a subexpression.
-     *      This is explicitly set to true only in the first call to advance() from expression().
+     * @param {boolean} hasLeftContext - True when the next token has something to its left.
      *      The only use for this flag currently is to tell the scanner how to treat the '/' operator.
-     *      When / is used as prefix, everything up to the next '/' should not be tokenized but rather
-     *      "swallowed" as the value of a regex token.
-     *      When '/' is used an infix, it is just the regular division operator.
+     *      When the next token has left context, '/' is tokenized as the division operator.
+     *      Otherwise '/' starts a regex literal and everything up to the next unescaped closing '/'
+     *      is swallowed into a regex token.
      * @returns {object|null} The next token object or null if end of input.
      */
-  var next = function (prefix) {
+  var next = function (hasLeftContext) {
     if (position >= length) return null;
     var currentChar = path.charAt(position);
     // skip whitespace - but keep track of new lines and indentation
@@ -238,7 +236,7 @@ export default function (path) {
       }
       position += 2;
       currentChar = path.charAt(position);
-      return next(prefix); // need this to swallow any following whitespace
+      return next(hasLeftContext); // need this to swallow any following whitespace
     }
     start = position; // remember the start of the token
     // FUME: capture URL's (including URN's)
@@ -271,7 +269,7 @@ export default function (path) {
         currentChar = path.charAt(++position);
       }
       // currentChar = path.charAt(position);
-      return next(prefix); // need this to swallow any following whitespace
+      return next(hasLeftContext); // need this to swallow any following whitespace
     }
     start = position; // remember the start of the token
     // handle flash block declarations ("Instance:", "InstanceOf:" and "* " rules)
@@ -300,7 +298,7 @@ export default function (path) {
       return token;
     }
     // test for regex
-    if (prefix !== true && currentChar === '/') {
+    if (hasLeftContext !== true && currentChar === '/') {
       position++;
       return create('regex', scanRegex());
     }
@@ -520,12 +518,12 @@ export default function (path) {
    * To allow context aware parsing, we need to be able to look ahead
    * without consuming the token. This function will return the next token
    * without consuming it, so that it can be used later.
-   * @param {*} prefix see `next()` for details
+   * @param {*} hasLeftContext see `next()` for details
    * @returns {object} the next token, or the peeked token if available
    */
-  function peek(prefix) {
+  function peek(hasLeftContext) {
     if (peeked === null) {
-      peeked = next(prefix);
+      peeked = next(hasLeftContext);
     }
     return peeked;
   }
