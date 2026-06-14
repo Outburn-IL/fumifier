@@ -191,12 +191,12 @@ function summarizeSourceError(sourceError) {
 }
 
 /**
- * Attach safe source-error metadata while keeping the raw cause non-enumerable.
+ * Copy safe source-error metadata onto a target without retaining the raw nested error.
  * @param {object} target - Error or diagnostic object being enriched.
- * @param {*} sourceError - Original nested error value.
+ * @param {*} sourceError - Original nested error or error-like value.
  * @returns {object} The same target object after enrichment.
  */
-export function attachSourceErrorMetadata(target, sourceError) {
+function copySafeErrorMetadata(target, sourceError) {
   if (!isObjectLike(target) || typeof sourceError === 'undefined') return target;
 
   const summary = summarizeSourceError(sourceError);
@@ -220,6 +220,20 @@ export function attachSourceErrorMetadata(target, sourceError) {
     target.sourceMessage = String(sourceError);
   }
 
+  return target;
+}
+
+/**
+ * Attach safe source-error metadata while keeping the raw cause non-enumerable.
+ * @param {object} target - Error or diagnostic object being enriched.
+ * @param {*} sourceError - Original nested error value.
+ * @returns {object} The same target object after enrichment.
+ */
+export function attachSourceErrorMetadata(target, sourceError) {
+  if (!isObjectLike(target) || typeof sourceError === 'undefined') return target;
+
+  copySafeErrorMetadata(target, sourceError);
+
   try {
     Object.defineProperty(target, 'sourceError', {
       value: sourceError,
@@ -240,12 +254,24 @@ export function attachSourceErrorMetadata(target, sourceError) {
  * @returns {object} Sanitized diagnostic object safe for verbose reporting.
  */
 export function sanitizeDiagnosticEntry(entry) {
+  const source = isObjectLike(entry) ? entry : {};
   const rest = { ...(entry || {}) };
   if (entry instanceof Error || (typeof entry?.message === 'string' && !Object.prototype.hasOwnProperty.call(rest, 'message'))) {
     rest.message = entry.message;
   }
+  if (Object.prototype.hasOwnProperty.call(source, 'sourceError')) {
+    copySafeErrorMetadata(rest, source.sourceError);
+  }
+  if (Object.prototype.hasOwnProperty.call(source, 'error')) {
+    copySafeErrorMetadata(rest, source.error);
+  }
+  if (Object.prototype.hasOwnProperty.call(source, 'cause')) {
+    copySafeErrorMetadata(rest, source.cause);
+  }
   if (Object.prototype.hasOwnProperty.call(rest, 'stack')) delete rest.stack;
   if (Object.prototype.hasOwnProperty.call(rest, 'sourceError')) delete rest.sourceError;
+  if (Object.prototype.hasOwnProperty.call(rest, 'error')) delete rest.error;
+  if (Object.prototype.hasOwnProperty.call(rest, 'cause')) delete rest.cause;
   return rest;
 }
 

@@ -88,9 +88,6 @@ class FumifierError extends Error {
     /** @type {any} [flashDiagnostics] FLASH diagnostics collected during evaluation */
     this.flashDiagnostics = properties.flashDiagnostics;
 
-    /** @type {any} [sourceError] Source error for wrapped errors */
-    this.sourceError = properties.sourceError;
-
     /** @type {string} [sourceErrorCode] Source error code for wrapped errors */
     this.sourceErrorCode = properties.sourceErrorCode;
 
@@ -103,6 +100,19 @@ class FumifierError extends Error {
         this[key] = properties[key];
       }
     });
+
+    if (properties.sourceError !== undefined) {
+      try {
+        Object.defineProperty(this, 'sourceError', {
+          value: properties.sourceError,
+          enumerable: false,
+          configurable: true,
+          writable: true
+        });
+      } catch (_) {
+        /* ignore */
+      }
+    }
 
     // Ensure we have a stack trace
     if (Error.captureStackTrace) {
@@ -1380,15 +1390,14 @@ var fumifier = (function() {
     try {
       re = new RegExp(pattern, flags);
     } catch (err) {
-      throw new FumifierError('S0303', undefined, {
+      throw attachSourceErrorMetadata(new FumifierError('S0303', undefined, {
         position: expr.position,
         start: expr.start,
         line: expr.line,
         value: `/${pattern}/${flags}`,
         sourceMessage: err.message,
-        sourceError: err,
         stack: err.stack || (new Error()).stack
-      });
+      }), err);
     }
 
     var closure = function(str, fromIndex) {
@@ -2281,12 +2290,11 @@ var fumifier = (function() {
     } catch(err) {
       // error evaluating the expression passed to $eval
       populateMessage(err, this.environment);
-      throw {
+      throw attachSourceErrorMetadata({
         stack: (new Error()).stack,
         code: "D3121",
-        value:err.message,
-        error: err
-      };
+        value: err.message
+      }, err);
     }
   }
 
@@ -2314,14 +2322,11 @@ var fumifier = (function() {
       } catch(sourceError) {
         populateMessage(sourceError, this.environment);
         // Cache error - throw specific error
-        throw {
+        throw attachSourceErrorMetadata({
           code: "F3006",
-          sourceErrorCode: sourceError.code || 'Unknown',
           value: mappingKey,
-          sourceMessage: sourceError.message || sourceError,
-          sourceError,
           stack: (new Error()).stack
-        };
+        }, sourceError);
       }
 
       if (typeof expr === 'undefined') {
@@ -2365,15 +2370,14 @@ var fumifier = (function() {
         ast = await parseAndCacheExpression(expr, false, navigator, terminologyRuntime, astCacheImpl, compiledFhirRegex, "F3002");
       } catch(parseError) {
         // error parsing the mapping expression - customize error format for mapping context
-        populateMessage(parseError.error || parseError, this.environment);
-        throw {
+        const nestedParseError = parseError.error || parseError;
+        populateMessage(nestedParseError, this.environment);
+        throw attachSourceErrorMetadata({
           code: "F3002",
-          sourceErrorCode: (parseError.error && parseError.error.code) || parseError.code || 'Unknown',
           value: mappingKey,
-          sourceMessage: (parseError.error && parseError.error.message) || parseError.message || parseError.value || parseError,
-          sourceError: parseError.error || parseError,
+          sourceMessage: parseError.message || parseError.value || nestedParseError.message || String(nestedParseError),
           stack: (new Error()).stack
-        };
+        }, nestedParseError);
       }
 
       try {
@@ -2385,14 +2389,11 @@ var fumifier = (function() {
       } catch(sourceError) {
         // error evaluating the mapping expression
         populateMessage(sourceError, this.environment);
-        throw {
+        throw attachSourceErrorMetadata({
           code: 'F3001',
-          sourceErrorCode: sourceError.code || 'Unknown',
           value: mappingKey,
-          sourceMessage: sourceError.message || sourceError,
-          sourceError,
           stack: (new Error()).stack
-        };
+        }, sourceError);
       }
     };
   }
