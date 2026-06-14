@@ -229,6 +229,37 @@ describe('$useFhirServer', function() {
     });
   });
 
+  it('does not expose inline auth config in verbose diagnostics for resolver failures', async function() {
+    const expr = await fumifier("($useFhirServer('http://public.fhir.org/r4', {'authType':'BASIC','username':'u','password':'p'}); $search('Patient', {}).total)", {
+      connectionResolver: () => {
+        const err = new Error('resolver boom');
+        err.config = {
+          auth: { username: 'u', password: 'p' },
+          headers: { authorization: 'Basic dTpw' }
+        };
+        throw err;
+      }
+    });
+
+    const report = await expr.evaluateVerbose({});
+
+    expect(report.ok).to.equal(false);
+    expect(report.status).to.equal(422);
+    expect(report.diagnostics.error).to.have.lengthOf(1);
+    expect(report.diagnostics.error[0]).to.include({
+      code: 'D3201',
+      token: 'useFhirServer',
+      sourceMessage: 'resolver boom'
+    });
+
+    const serialized = JSON.stringify(report.diagnostics.error[0]);
+    expect(serialized).not.to.contain('"sourceError"');
+    expect(serialized).not.to.contain('"config"');
+    expect(serialized).not.to.contain('"auth"');
+    expect(serialized).not.to.contain('"password"');
+    expect(serialized).not.to.contain('Basic dTpw');
+  });
+
   it('keeps $translateCode on terminology runtime after switching FHIR servers', async function() {
     const defaultClient = createClient(1);
     const resolverCalls = [];
