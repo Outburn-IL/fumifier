@@ -32,6 +32,10 @@ const malformedDoubleStarExpression = `InstanceOf: Patient
 * address
   * * valueString = 'x'`;
 
+const malformedEmptyRuleExpression = `InstanceOf: Patient
+* address
+  *`;
+
 function findInlineWildcards(node, found = []) {
   if (!node || typeof node !== 'object') {
     return found;
@@ -163,6 +167,20 @@ describe('FLASH parser hardening regression', function() {
     assert.equal(ast.errors[0].start, malformedWildcardStart);
   });
 
+  it('should preserve F1024 error locations for truly empty FLASH rules in recover=true mode', function() {
+    const ast = parse(malformedEmptyRuleExpression, true);
+    const malformedRuleStart = malformedEmptyRuleExpression.lastIndexOf('*');
+
+    assert(ast, 'Expected recover=true parsing to return an AST');
+    assert(Array.isArray(ast.errors), 'Expected malformed recover-mode parse to attach errors');
+    assert.equal(ast.errors.length, 1, 'Expected a single malformed rule error');
+    assert.equal(ast.errors[0].code, 'F1024');
+    assert.equal(ast.errors[0].line, 3);
+    assert.equal(ast.errors[0].position, malformedRuleStart + 1);
+    assert.equal(ast.errors[0].start, malformedRuleStart);
+    assert.equal(ast.errors[0].token, '(end)');
+  });
+
   it('should validate the unwrapped expression as valid', function() {
     const result = validate(issueExpression);
 
@@ -184,6 +202,17 @@ describe('FLASH parser hardening regression', function() {
       () => parse(malformedDoubleStarExpression, false),
       (error) => {
         assert.equal(error.code, 'F1022');
+        assert.equal(error.line, 3);
+        return true;
+      }
+    );
+  });
+
+  it('should still reject truly empty FLASH rules with F1024', function() {
+    assert.throws(
+      () => parse(malformedEmptyRuleExpression, false),
+      (error) => {
+        assert.equal(error.code, 'F1024');
         assert.equal(error.line, 3);
         return true;
       }
