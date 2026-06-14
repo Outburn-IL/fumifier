@@ -17,6 +17,30 @@ import { attachSourceErrorMetadata } from './diagnostics.js';
  */
 function createFhirClientWrappers(getFhirClient) {
   /**
+   * Extract a concrete resource identity from a literal reference or normalized request metadata.
+   * @param {string} resourceTypeOrRef - Resource type or literal reference.
+   * @param {any} err - Error thrown by the FHIR client layer.
+   * @returns {{resourceType:string, resourceId:string}|undefined} Safe resource identity when available.
+   */
+  function getResourceIdentity(resourceTypeOrRef, err) {
+    if (typeof resourceTypeOrRef === 'string') {
+      const [resourceType, resourceId] = resourceTypeOrRef.split('/');
+      if (resourceType && resourceId) {
+        return { resourceType, resourceId };
+      }
+    }
+
+    if (typeof err?.request?.resourceType === 'string' && typeof err?.request?.id === 'string' && err.request.resourceType && err.request.id) {
+      return {
+        resourceType: err.request.resourceType,
+        resourceId: err.request.id
+      };
+    }
+
+    return undefined;
+  }
+
+  /**
    * Read an HTTP-like status from either normalized FHIR client errors or legacy Axios-shaped errors.
    * @param {any} err - Error thrown by the FHIR client layer.
    * @returns {number|undefined} HTTP status when available.
@@ -56,14 +80,15 @@ function createFhirClientWrappers(getFhirClient) {
   function handleFhirClientError(err, operationName, resourceTypeOrRef, params, environment) {
     // Check for 404 errors
     if (getErrorStatus(err) === 404) {
-      const ref = resourceTypeOrRef;
-      const [resourceType, resourceId] = ref.split('/');
-      return handleError(attachSourceErrorMetadata({
-        code: 'F5210',
-        resourceType,
-        resourceId,
-        stack: err.stack || (new Error()).stack
-      }, err), environment);
+      const identity = getResourceIdentity(resourceTypeOrRef, err);
+      if (identity) {
+        return handleError(attachSourceErrorMetadata({
+          code: 'F5210',
+          resourceType: identity.resourceType,
+          resourceId: identity.resourceId,
+          stack: err.stack || (new Error()).stack
+        }, err), environment);
+      }
     }
 
     // Check for "No resources found" errors
