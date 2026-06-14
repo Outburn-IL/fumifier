@@ -187,7 +187,9 @@ export function validate(expression) {
       type: error.type || 'ParseError'
     };
 
-    populateMessage(fumeError);
+    if (!error.message) {
+      populateMessage(fumeError);
+    }
     return {
       isValid: false,
       errors: [fumeError]
