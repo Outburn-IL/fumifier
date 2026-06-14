@@ -49,7 +49,7 @@ const parser = (() => {
      * When off, indent tokens are ignored entirely and regular JSONata mode is used where indents are not significant.
      */
     var indentAwareMode = false;
-    var parsingFlashInlineExpression = false;
+    var parsingFlashValueExpression = false;
 
     /**
      * Every token, such as an operator or identifier, will inherit from a symbol.
@@ -893,7 +893,7 @@ const parser = (() => {
     // field wildcard (single level) OR flash rule
     prefix('*', function () {
       var { position, line, start } = this;
-      if (indentAwareMode && parsingFlashInlineExpression) {
+      if (indentAwareMode && parsingFlashValueExpression) {
         this.type = 'wildcard';
         return this;
       }
@@ -917,11 +917,11 @@ const parser = (() => {
         if (node.id === '=') {
           advance('=');
           if (node.id !== '(end)' && node.id !== '(indent)') {
-            parsingFlashInlineExpression = true;
+            parsingFlashValueExpression = true;
             try {
               this.inlineExpression = expression(0);
             } finally {
-              parsingFlashInlineExpression = false;
+              parsingFlashValueExpression = false;
             }
             // Allow optional trailing semicolon after inline expression for backwards compatibility
             if (node.id === ';') {
