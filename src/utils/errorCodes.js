@@ -105,6 +105,7 @@ const errorCodes = {
   "S0218": "The right side of {{token}} is missing",
   "S0301": "Empty regular expressions are not allowed",
   "S0302": "No terminating / in regular expression",
+  "S0303": "Invalid regular expression literal {{value}}: {{{sourceMessage}}}",
   "S0402": "Choice groups containing parameterized types are not supported",
   "S0401": "Type parameters can only be applied to functions and arrays",
   "S0500": "Attempted to evaluate an expression containing syntax error(s)",

@@ -1376,7 +1376,21 @@ var fumifier = (function() {
       flags += 'g';
     }
 
-    var re = new RegExp(pattern, flags);
+    var re;
+    try {
+      re = new RegExp(pattern, flags);
+    } catch (err) {
+      throw new FumifierError('S0303', undefined, {
+        position: expr.position,
+        start: expr.start,
+        line: expr.line,
+        value: `/${pattern}/${flags}`,
+        sourceMessage: err.message,
+        sourceError: err,
+        stack: err.stack || (new Error()).stack
+      });
+    }
+
     var closure = function(str, fromIndex) {
       var result;
       re.lastIndex = fromIndex || 0;

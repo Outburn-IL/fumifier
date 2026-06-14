@@ -88,9 +88,26 @@ export default function (path) {
           position++;
           currentChar = path.charAt(position);
         }
+        var rawFlags = path.substring(flagsStart, position);
+        var compiledFlags = rawFlags + 'g';
+
+        try {
+          new RegExp(pattern, compiledFlags);
+        } catch (err) {
+          throw {
+            code: 'S0303',
+            stack: (new Error()).stack,
+            position,
+            start: literalStart,
+            line,
+            value: `/${pattern}/${rawFlags}`,
+            sourceMessage: err.message
+          };
+        }
+
         return {
           value: pattern,
-          flags: path.substring(flagsStart, position) + 'g',
+          flags: compiledFlags,
           start: literalStart
         };
       }
