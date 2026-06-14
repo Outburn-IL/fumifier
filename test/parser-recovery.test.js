@@ -500,4 +500,70 @@ describe('Recover mode JSONata parsing', function() {
     assert(Array.isArray(errors), 'Expected errors() to return an array');
     assert(errors.length > 0, 'Expected at least one recoverable parse error');
   });
+
+  it('should keep the assignment-side error primary after recovery before a later division slash', async function() {
+    const compiled = await fumifier('$resourceTypes := ;\n$reqCount := $ceil($count($refChunk)/$maxIdsPerRequest);', {
+      recover: true,
+      navigator: undefined
+    });
+    const errors = compiled.errors();
+
+    assert.ok(compiled.ast(), 'Expected recover mode to still return an AST');
+    assert(Array.isArray(errors), 'Expected errors() to return an array');
+    assert(errors.length > 0, 'Expected at least one recoverable parse error');
+    assert.deepEqual(errors[0], {
+      code: 'S0218',
+      token: ':=',
+      line: 1,
+      position: 17,
+      start: 15
+    });
+    assert.equal(errors.find(error => error.code === 'S0302'), undefined,
+      'Recovery should not reinterpret the later division slash as a regex literal');
+  });
+
+  it('should report missing RHS for division at end of input', async function() {
+    const compiled = await fumifier('1/', { recover: true, navigator: undefined });
+    const errors = compiled.errors();
+
+    assert.ok(compiled.ast(), 'Expected recover mode to still return an AST');
+    assert(Array.isArray(errors), 'Expected errors() to return an array');
+    assert.deepEqual(errors[0], {
+      code: 'S0218',
+      token: '/',
+      line: 1,
+      position: 2,
+      start: 1
+    });
+  });
+
+  it('should keep missing RHS for division primary before a closing paren error', async function() {
+    const compiled = await fumifier('(1/)', { recover: true, navigator: undefined });
+    const errors = compiled.errors();
+
+    assert.ok(compiled.ast(), 'Expected recover mode to still return an AST');
+    assert(Array.isArray(errors), 'Expected errors() to return an array');
+    assert.deepEqual(errors[0], {
+      code: 'S0218',
+      token: '/',
+      line: 1,
+      position: 3,
+      start: 2
+    });
+  });
+
+  it('should keep missing RHS for division primary for incomplete parenthesized expressions', async function() {
+    const compiled = await fumifier('(1/', { recover: true, navigator: undefined });
+    const errors = compiled.errors();
+
+    assert.ok(compiled.ast(), 'Expected recover mode to still return an AST');
+    assert(Array.isArray(errors), 'Expected errors() to return an array');
+    assert.deepEqual(errors[0], {
+      code: 'S0218',
+      token: '/',
+      line: 1,
+      position: 3,
+      start: 2
+    });
+  });
 });
