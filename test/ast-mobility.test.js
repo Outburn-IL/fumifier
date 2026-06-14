@@ -295,6 +295,24 @@ describe('AST Mobility Feature', function() {
     }, /Invalid AST/);
   });
 
+  it('should throw a structured error for invalid regex metadata in AST input', async function() {
+    const invalidRegexAst = {
+      type: 'regex',
+      value: 'foo',
+      flags: 'iig',
+      position: 8,
+      start: 0,
+      line: 1
+    };
+
+    const compiled = await fumifier(invalidRegexAst);
+
+    await assert.rejects(
+      async () => await compiled.evaluate({}),
+      (err) => err.code === 'S0303' && err.position === 8 && err.start === 0 && err.line === 1 && err.value === '/foo/iig'
+    );
+  });
+
   it('should throw error for invalid input types', async function() {
     // Test null
     await assert.rejects(async () => {

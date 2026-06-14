@@ -89,6 +89,14 @@ describe('Browser Entry Point', function() {
       }, 'Should throw on incomplete expression');
     });
 
+    it('should throw a structured error for invalid regex literals', function() {
+      const { parse } = browserModuleEsm;
+
+      assert.throws(() => {
+        parse('/foo/ii');
+      }, (err) => err.code === 'S0303' && err.start === 0 && err.position === 7);
+    });
+
     it('should return errors in AST when recover=true', function() {
       const { parse } = browserModuleEsm;
       const ast = parse('name.first &', true);
@@ -119,6 +127,20 @@ describe('Browser Entry Point', function() {
       assert(result.isValid === false, 'Invalid expression should be marked as invalid');
       assert(result.errors.length > 0, 'Invalid expression should have errors');
       assert(typeof result.errors[0].code === 'string', 'Errors should have error codes');
+    });
+
+    it('should report structured errors for invalid regex literals', function() {
+      const { validate } = browserModuleEsm;
+      const result = validate('/foo/ii');
+
+      assert(result.isValid === false, 'Invalid regex literal should be invalid');
+      assert.equal(result.errors[0].code, 'S0303');
+      assert.equal(result.errors[0].position, 7);
+      assert.equal(result.errors[0].start, 0);
+      assert.equal(result.errors[0].line, 1);
+      assert.equal(result.errors[0].value, '/foo/ii');
+      assert.equal(result.errors[0].type, 'ParseError');
+      assert.match(result.errors[0].message, /^Invalid regular expression literal "\/foo\/ii": /);
     });
 
     it('should handle non-string input gracefully', function() {
