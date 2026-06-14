@@ -89,6 +89,14 @@ describe('Browser Entry Point', function() {
       }, 'Should throw on incomplete expression');
     });
 
+    it('should throw a structured error for invalid regex literals', function() {
+      const { parse } = browserModuleEsm;
+
+      assert.throws(() => {
+        parse('/foo/ii');
+      }, (err) => err.code === 'S0303' && err.start === 0 && err.position === 7);
+    });
+
     it('should return errors in AST when recover=true', function() {
       const { parse } = browserModuleEsm;
       const ast = parse('name.first &', true);
@@ -119,6 +127,20 @@ describe('Browser Entry Point', function() {
       assert(result.isValid === false, 'Invalid expression should be marked as invalid');
       assert(result.errors.length > 0, 'Invalid expression should have errors');
       assert(typeof result.errors[0].code === 'string', 'Errors should have error codes');
+    });
+
+    it('should report structured errors for invalid regex literals', function() {
+      const { validate } = browserModuleEsm;
+      const result = validate('/foo/ii');
+
+      assert(result.isValid === false, 'Invalid regex literal should be invalid');
+      assert.equal(result.errors[0].code, 'S0303');
+      assert.equal(result.errors[0].position, 7);
+      assert.equal(result.errors[0].start, 0);
+      assert.equal(result.errors[0].line, 1);
+      assert.equal(result.errors[0].value, '/foo/ii');
+      assert.equal(result.errors[0].type, 'ParseError');
+      assert.match(result.errors[0].message, /^Invalid regular expression literal "\/foo\/ii": /);
     });
 
     it('should handle non-string input gracefully', function() {
@@ -190,6 +212,22 @@ describe('Browser Entry Point', function() {
       assert(Array.isArray(tokens), 'Should return an array');
       assert(tokens.length > 0, 'Should return tokens');
       assert(tokens[0].type === 'regex', 'First token should be a regex literal');
+    });
+
+    it('should preserve regex token coordinates in browser tokenization', function() {
+      const { tokenize } = browserModuleEsm;
+      const tokens = tokenize('/foo/im');
+
+      assert(Array.isArray(tokens), 'Should return an array');
+      assert.equal(tokens.length, 1, 'Standalone regex should be emitted as a single token');
+      assert.deepEqual(tokens[0], {
+        type: 'regex',
+        value: 'foo',
+        flags: 'img',
+        start: 0,
+        end: 7,
+        line: 1
+      });
     });
   });
 

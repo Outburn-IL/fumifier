@@ -37,10 +37,11 @@ export default function (path) {
   /**
      * Creates a token object with type, value, and position.
      * @param {string} type - The type of the token (e.g., 'operator', 'string', 'number', 'name').
-     * @param {string|number|RegExp} value - The value of the token.
+     * @param {string|number|boolean|null} value - The value of the token.
+     * @param {object} [extraProps] - Optional extra token properties.
      * @returns {object} A token object containing type, value, and the current position.
      */
-  var create = function (type, value) {
+  var create = function (type, value, extraProps) {
     var obj = {
       type,
       value,
@@ -48,17 +49,18 @@ export default function (path) {
       start,              // start position (added for better error marking in FUME)
       line                // line number (added for clear error reporting in FUME)
     };
+    if (extraProps) {
+      Object.assign(obj, extraProps);
+    }
     previousToken = obj;
     return obj;
   };
 
-  var scanRegex = function () {
+  var scanRegex = function (literalStart) {
     // the prefix '/' will have been previously scanned. Find the end of the regex.
     // search for closing '/' ignoring any that are escaped, or within brackets
-    start = position;
+    var patternStart = position;
     var depth = 0;
-    var pattern;
-    var flags;
 
     var isClosingSlash = function (position) {
       if (path.charAt(position) === '/' && depth === 0) {
@@ -77,17 +79,37 @@ export default function (path) {
       var currentChar = path.charAt(position);
       if (isClosingSlash(position)) {
         // end of regex found
-        pattern = path.substring(start, position);
+        var pattern = path.substring(patternStart, position);
         position++;
         currentChar = path.charAt(position);
         // flags
-        start = position;
+        var flagsStart = position;
         while (currentChar === 'i' || currentChar === 'm') {
           position++;
           currentChar = path.charAt(position);
         }
-        flags = path.substring(start, position) + 'g';
-        return new RegExp(pattern, flags);
+        var rawFlags = path.substring(flagsStart, position);
+        var compiledFlags = rawFlags + 'g';
+
+        try {
+          new RegExp(pattern, compiledFlags);
+        } catch (err) {
+          throw {
+            code: 'S0303',
+            stack: (new Error()).stack,
+            position,
+            start: literalStart,
+            line,
+            value: `/${pattern}/${rawFlags}`,
+            sourceMessage: err.message
+          };
+        }
+
+        return {
+          value: pattern,
+          flags: compiledFlags,
+          start: literalStart
+        };
       }
       if ((currentChar === '(' || currentChar === '[' || currentChar === '{') && path.charAt(position - 1) !== '\\') {
         depth++;
@@ -102,7 +124,7 @@ export default function (path) {
       code: "S0302",
       stack: (new Error()).stack,
       position,
-      start,
+      start: literalStart,
       line
     };
   };
@@ -133,16 +155,14 @@ export default function (path) {
   /**
      * Advances to the next simple token and returns it.
      * This is entirely sequential - no nesting and operator precedence logic is done here
-     * @param {boolean} prefix - This essentially tells the scanner that the next token is going to be
-     *      used as a prefix - the beginning of a subexpression.
-     *      This is explicitly set to true only in the first call to advance() from expression().
+     * @param {boolean} hasLeftContext - True when the next token has something to its left.
      *      The only use for this flag currently is to tell the scanner how to treat the '/' operator.
-     *      When / is used as prefix, everything up to the next '/' should not be tokenized but rather
-     *      "swallowed" as the value of a regex token.
-     *      When '/' is used an infix, it is just the regular division operator.
+     *      When the next token has left context, '/' is tokenized as the division operator.
+     *      Otherwise '/' starts a regex literal and everything up to the next unescaped closing '/'
+     *      is swallowed into a regex token.
      * @returns {object|null} The next token object or null if end of input.
      */
-  var next = function (prefix) {
+  var next = function (hasLeftContext) {
     if (position >= length) return null;
     var currentChar = path.charAt(position);
     // skip whitespace - but keep track of new lines and indentation
@@ -238,7 +258,7 @@ export default function (path) {
       }
       position += 2;
       currentChar = path.charAt(position);
-      return next(prefix); // need this to swallow any following whitespace
+      return next(hasLeftContext); // need this to swallow any following whitespace
     }
     start = position; // remember the start of the token
     // FUME: capture URL's (including URN's)
@@ -271,7 +291,7 @@ export default function (path) {
         currentChar = path.charAt(++position);
       }
       // currentChar = path.charAt(position);
-      return next(prefix); // need this to swallow any following whitespace
+      return next(hasLeftContext); // need this to swallow any following whitespace
     }
     start = position; // remember the start of the token
     // handle flash block declarations ("Instance:", "InstanceOf:" and "* " rules)
@@ -300,9 +320,14 @@ export default function (path) {
       return token;
     }
     // test for regex
-    if (prefix !== true && currentChar === '/') {
+    if (hasLeftContext !== true && currentChar === '/') {
+      var literalStart = position;
       position++;
-      return create('regex', scanRegex());
+      var regexToken = scanRegex(literalStart);
+      return create('regex', regexToken.value, {
+        flags: regexToken.flags,
+        start: regexToken.start
+      });
     }
     // handle double-char operators
     if (currentChar === '.' && path.charAt(position + 1) === '.') {
@@ -520,12 +545,12 @@ export default function (path) {
    * To allow context aware parsing, we need to be able to look ahead
    * without consuming the token. This function will return the next token
    * without consuming it, so that it can be used later.
-   * @param {*} prefix see `next()` for details
+   * @param {*} hasLeftContext see `next()` for details
    * @returns {object} the next token, or the peeked token if available
    */
-  function peek(prefix) {
+  function peek(hasLeftContext) {
     if (peeked === null) {
-      peeked = next(prefix);
+      peeked = next(hasLeftContext);
     }
     return peeked;
   }

@@ -5,6 +5,48 @@ import { FhirSnapshotGenerator } from "fhir-snapshot-generator";
 import { FhirTerminologyRuntime } from "fhir-terminology-runtime";
 import { FhirPackageExplorer } from "fhir-package-explorer";
 
+function findNodeByType(value, type) {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  if (value.type === type) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const match = findNodeByType(item, type);
+      if (match) {
+        return match;
+      }
+    }
+    return null;
+  }
+
+  for (const candidate of Object.values(value)) {
+    const match = findNodeByType(candidate, type);
+    if (match) {
+      return match;
+    }
+  }
+
+  return null;
+}
+
+function simplifyRegexMatch(result) {
+  if (!result) {
+    return result;
+  }
+
+  return {
+    match: result.match,
+    start: result.start,
+    end: result.end,
+    groups: result.groups
+  };
+}
+
 describe('AST Mobility Feature', function() {
   let navigator;
   let terminologyRuntime;
@@ -179,6 +221,40 @@ describe('AST Mobility Feature', function() {
     assert.equal(originalResult, "Hello World");
   });
 
+  it('should preserve regex metadata across AST JSON round-trips', async function() {
+    const originalExpr = await fumifier('/a(b+)/i ("Ababbabbcc")');
+    const originalAst = originalExpr.ast();
+    const originalRegexNode = findNodeByType(originalAst, 'regex');
+
+    assert.ok(originalRegexNode, 'Expected a regex node in the original AST');
+    assert.deepEqual(originalRegexNode, {
+      type: 'regex',
+      value: 'a(b+)',
+      flags: 'ig',
+      position: 8,
+      start: 0,
+      line: 1
+    });
+
+    const astJson = JSON.stringify(originalAst);
+    const deserializedAst = JSON.parse(astJson);
+    const deserializedRegexNode = findNodeByType(deserializedAst, 'regex');
+
+    assert.ok(deserializedRegexNode, 'Expected a regex node after JSON round-trip');
+    assert.deepEqual(deserializedRegexNode, originalRegexNode,
+      'Regex node metadata should survive JSON serialization');
+
+    const recreatedExpr = await fumifier(deserializedAst);
+    const originalResult = await originalExpr.evaluate({});
+    const recreatedResult = await recreatedExpr.evaluate({});
+
+    assert.deepEqual(simplifyRegexMatch(recreatedResult), simplifyRegexMatch(originalResult));
+    assert.deepEqual(simplifyRegexMatch(recreatedResult), { match: 'Ab', start: 0, end: 2, groups: ['b'] });
+    assert.equal(typeof originalResult.next, 'function');
+    assert.equal(typeof recreatedResult.next, 'function');
+    assert.deepEqual(simplifyRegexMatch(recreatedResult.next()), simplifyRegexMatch(originalResult.next()));
+  });
+
   it('should handle AST with errors (recovery mode)', async function() {
     const originalExpr = await fumifier('1 + +', { recover: true });
     const originalAst = originalExpr.ast();
@@ -217,6 +293,24 @@ describe('AST Mobility Feature', function() {
     await assert.rejects(async () => {
       await fumifier(invalidAst);
     }, /Invalid AST/);
+  });
+
+  it('should throw a structured error for invalid regex metadata in AST input', async function() {
+    const invalidRegexAst = {
+      type: 'regex',
+      value: 'foo',
+      flags: 'iig',
+      position: 8,
+      start: 0,
+      line: 1
+    };
+
+    const compiled = await fumifier(invalidRegexAst);
+
+    await assert.rejects(
+      async () => await compiled.evaluate({}),
+      (err) => err.code === 'S0303' && err.position === 8 && err.start === 0 && err.line === 1 && err.value === '/foo/iig'
+    );
   });
 
   it('should throw error for invalid input types', async function() {

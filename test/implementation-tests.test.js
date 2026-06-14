@@ -725,6 +725,34 @@ describe("Tests that are specific to a Javascript runtime", () => {
     });
   });
 
+  describe('["ab","bc","ad"][$match($,/a./)]', function() {
+    it('should compile the inline regex once per evaluation context', async function() {
+      var expr = await fumifier('["ab","bc","ad"][$match($,/a./)]');
+      var OriginalRegExp = globalThis.RegExp;
+      var regexCompileCount = 0;
+
+      function CountingRegExp(pattern, flags) {
+        regexCompileCount++;
+        return new OriginalRegExp(pattern, flags);
+      }
+
+      Object.setPrototypeOf(CountingRegExp, OriginalRegExp);
+      CountingRegExp.prototype = OriginalRegExp.prototype;
+      globalThis.RegExp = CountingRegExp;
+
+      try {
+        var firstResult = await expr.evaluate();
+        var secondResult = await expr.evaluate();
+
+        expect(firstResult).to.deep.equal(["ab", "ad"]);
+        expect(secondResult).to.deep.equal(["ab", "ad"]);
+        expect(regexCompileCount).to.equal(2);
+      } finally {
+        globalThis.RegExp = OriginalRegExp;
+      }
+    });
+  });
+
   // skipped due to possible collision with the addition of single line comments //
   describe("empty regex", function() {
     it("should throw error", async function() {

@@ -187,7 +187,9 @@ export function validate(expression) {
       type: error.type || 'ParseError'
     };
 
-    populateMessage(fumeError);
+    if (!error.message) {
+      populateMessage(fumeError);
+    }
     return {
       isValid: false,
       errors: [fumeError]
@@ -253,13 +255,17 @@ export function tokenize(expression) {
     let token = lexer.next(infix);
     while (token !== null) {
       // Convert position (end) to end for consistency
-      tokens.push({
+      const tokenInfo = {
         type: token.type,
         value: token.value,
         start: token.start,
         end: token.position,
         line: token.line || 1
-      });
+      };
+      if (token.type === 'regex' && Object.prototype.hasOwnProperty.call(token, 'flags')) {
+        tokenInfo.flags = token.flags;
+      }
+      tokens.push(tokenInfo);
 
       infix = canStartInfix(token);
       token = lexer.next(infix);
