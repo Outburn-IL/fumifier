@@ -33,7 +33,7 @@ import { populateMessage } from './utils/errorCodes.js';
 import defineFunction from './utils/defineFunction.js';
 import registerNativeFn from './utils/registerNativeFn.js';
 import createFlashEvaluator from './flashEvaluator.js';
-import { createDefaultLogger, SYM, decide, push, thresholds, severityFromCode, LEVELS } from './utils/diagnostics.js';
+import { createDefaultLogger, SYM, decide, push, thresholds, severityFromCode, LEVELS, attachSourceErrorMetadata } from './utils/diagnostics.js';
 import createFhirClientWrappers from './utils/fhirClientWrappers.js';
 import createTerminologyWrappers from './utils/terminologyWrappers.js';
 
@@ -2551,12 +2551,11 @@ var fumifier = (function() {
           throw err;
         }
 
-        throw new FumifierError('D3201', undefined, {
+        throw attachSourceErrorMetadata(new FumifierError('D3201', undefined, {
           target,
           sourceMessage: err?.message || String(err),
-          sourceError: err,
           stack: err?.stack || (new Error()).stack
-        });
+        }), err);
       }
 
       if (typeof config === 'undefined') {
