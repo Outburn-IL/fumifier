@@ -1550,7 +1550,16 @@ const parser = (() => {
         });
       }
       this.lhs = left;
-      this.rhs = parseRequiredRhs(this, operators[':='] - 1); // subtract 1 from bindingPower for right associative operators
+      if (indentAwareMode) {
+        parsingFlashValueExpression = true;
+        try {
+          this.rhs = parseRequiredRhs(this, operators[':='] - 1); // subtract 1 from bindingPower for right associative operators
+        } finally {
+          parsingFlashValueExpression = false;
+        }
+      } else {
+        this.rhs = parseRequiredRhs(this, operators[':='] - 1); // subtract 1 from bindingPower for right associative operators
+      }
       this.type = "binary";
       return this;
     });
