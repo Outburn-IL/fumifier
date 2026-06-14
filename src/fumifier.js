@@ -235,6 +235,7 @@ var fumifier = (function() {
   // Start of Evaluator code
 
   var staticFrame = createFrame(null);
+  const regexEvalCacheSymbol = Symbol.for('fumifier.__regexEvalCache');
 
   /**
      * Evaluate expression against input data
@@ -1363,8 +1364,19 @@ var fumifier = (function() {
      * @param {Object} expr - expression containing regex
      * @returns {Function} Higher order function representing prepared regex
      */
-  function evaluateRegex(expr) {
-    var re = new RegExp(expr.value);
+  function evaluateRegex(expr, input, environment) {
+    var regexCache = environment.lookup(regexEvalCacheSymbol);
+    if (regexCache && regexCache.has(expr)) {
+      return regexCache.get(expr);
+    }
+
+    var pattern = expr.value instanceof RegExp ? expr.value.source : expr.value;
+    var flags = expr.flags || (expr.value instanceof RegExp ? expr.value.flags : 'g');
+    if (flags.indexOf('g') === -1) {
+      flags += 'g';
+    }
+
+    var re = new RegExp(pattern, flags);
     var closure = function(str, fromIndex) {
       var result;
       re.lastIndex = fromIndex || 0;
@@ -1393,7 +1405,7 @@ var fumifier = (function() {
                 stack: (new Error()).stack,
                 position: expr.position,
                 start: expr.start,
-                value: expr.value.source
+                value: pattern
               };
             }
             return next;
@@ -1403,6 +1415,11 @@ var fumifier = (function() {
 
       return result;
     };
+
+    if (regexCache) {
+      regexCache.set(expr, closure);
+    }
+
     return closure;
   }
 
@@ -2157,6 +2174,8 @@ var fumifier = (function() {
       exec_env.executionId = executionId;
       exec_env.bind('executionId', executionId);
     }
+
+    exec_env.bind(regexEvalCacheSymbol, new WeakMap());
 
     exec_env.bind('$', input);
 
