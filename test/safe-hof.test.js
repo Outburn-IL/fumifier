@@ -17,6 +17,16 @@ describe('$safe HOF', function() {
     });
   });
 
+  it('preserves native signature validation for wrapped context-supplied functions', async function() {
+    const expr = await fumifier('($safeToMillis := $toMillis.$safe(); $safeToMillis(123))');
+    const res = await expr.evaluate({});
+
+    expect(res.ok).to.equal(false);
+    expect(res.result).to.equal(undefined);
+    expect(res.error.code).to.equal('T0410');
+    expect(res.error.code).to.not.equal('D3110');
+  });
+
   it('supports chaining and returns an ok result object on success', async function() {
     const expr = await fumifier('"hello" ~> $safe($uppercase)()');
     const res = await expr.evaluate({});
