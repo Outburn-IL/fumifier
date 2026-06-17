@@ -243,6 +243,12 @@ class ChildValueProcessor {
         return [createFhirPrimitive({ value: patternValue })];
       }
 
+      // Pattern values for array elements may already be arrays (e.g. CodeableConcept.coding).
+      // In that case, return the items directly to avoid producing nested arrays like [[{...}]].
+      if (Array.isArray(patternValue) && (child.max !== '1' || child.__isArray)) {
+        return patternValue;
+      }
+
       return [patternValue]; // return the value from the parent pattern as-is for other types
     }
     const valuesForName = []; // keep all values for this json element name    // check if the inline expression has a value for this name

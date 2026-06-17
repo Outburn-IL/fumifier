@@ -6,7 +6,7 @@ import { FhirSnapshotGenerator } from 'fhir-snapshot-generator';
 import { FhirStructureNavigator } from '@outburn/structure-navigator';
 import { FhirPackageExplorer } from 'fhir-package-explorer';
 
-// var context = ['il.core.fhir.r4#0.17.0', 'fumifier.test.pkg#0.1.0'];
+// var context = ['il.core.fhir.r4#0.21.0', 'fumifier.test.pkg#0.1.0'];
 var context = ['il.szmc.fhir.r4#0.3.3'];
 
 void async function () {

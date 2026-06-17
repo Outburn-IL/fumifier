@@ -1,0 +1,14 @@
+{
+  "description": "Issue #85 reproduction: identifier[ppn].type pattern injection should not double-wrap coding",
+  "data": null,
+  "result": {
+    "coding": [
+      {
+        "code": "PPN",
+        "display": "Passport number",
+        "system": "http://terminology.hl7.org/CodeSystem/v2-0203"
+      }
+    ]
+  },
+  "expr-file": "nested-array-codeableconcept.fume"
+}
