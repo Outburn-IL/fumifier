@@ -51,6 +51,30 @@ describe('$memoize HOF', function() {
     expect(callCount).to.equal(2);
   });
 
+  it('distinguishes non-finite numbers and negative zero in memoize cache keys', async function() {
+    let callCount = 0;
+    const expr = await fumifier('($memo := $memoize($describe); [$memo($nan), $memo($inf), $memo($negInf), $memo($negZero), $memo($zero)])');
+    expr.assign('nan', NaN);
+    expr.assign('inf', Infinity);
+    expr.assign('negInf', -Infinity);
+    expr.assign('negZero', -0);
+    expr.assign('zero', 0);
+    expr.assign('describe', (value) => {
+      callCount += 1;
+      if (Number.isNaN(value)) return 'nan';
+      if (value === Infinity) return 'inf';
+      if (value === -Infinity) return '-inf';
+      if (Object.is(value, -0)) return '-0';
+      if (value === 0) return '0';
+      return String(value);
+    });
+
+    const res = await expr.evaluate({});
+
+    expect(res).to.deep.equal(['nan', 'inf', '-inf', '-0', '0']);
+    expect(callCount).to.equal(5);
+  });
+
   it('does not cache rejected results and retries after failure', async function() {
     let callCount = 0;
     const expr = await fumifier('($memo := $memoize($flaky); $first := $safe($memo)(1); $second := $safe($memo)(1); $third := $safe($memo)(1); [$first, $second, $third])');
