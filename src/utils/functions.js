@@ -12,6 +12,7 @@ License: See the LICENSE file included with this package for the terms that appl
 import utils from './utils.js';
 import defineFunction from './defineFunction.js';
 import { attachSourceErrorMetadata } from './diagnostics.js';
+import { populateMessage } from './errorCodes.js';
 
 const functions = (() => {
 
@@ -128,9 +129,22 @@ const functions = (() => {
   function sanitizeSafeError(error) {
     var result = {};
     if (error && typeof error === 'object') {
+      var explicitSourceMessage = typeof error.sourceMessage === 'string' ? error.sourceMessage : undefined;
+      var explicitSourceErrorCode = typeof error.sourceErrorCode === 'string' ? error.sourceErrorCode : undefined;
+
+      if (typeof error.code === 'string' && (typeof error.message !== 'string' || error.message.length === 0)) {
+        try {
+          populateMessage(error);
+        } catch (_) {
+          // Ignore message population failures and fall back to raw fields below.
+        }
+      }
+
       if (typeof error.code === 'string') result.code = error.code;
       if (typeof error.message === 'string') result.message = error.message;
-      attachSourceErrorMetadata(result, error);
+      attachSourceErrorMetadata(result, error.sourceError || error);
+      if (typeof explicitSourceMessage === 'string') result.sourceMessage = explicitSourceMessage;
+      if (typeof explicitSourceErrorCode === 'string') result.sourceErrorCode = explicitSourceErrorCode;
     } else {
       result.message = String(error);
     }
