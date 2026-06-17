@@ -1,0 +1,16 @@
+(
+  InstanceOf: http://fhir.health.gov.il/StructureDefinition/il-core-patient
+  * identifier
+    * type
+      * coding
+        * system = 'http://terminology.hl7.org/CodeSystem/v2-0203'
+        * code = 'PPN'
+        * display = 'Passport number'
+    * system = "http://hl7.org/fhir/sid/passport-USA"
+    * value = '123'
+  * name[Hebrew]
+    * given = 'fName'
+    * family = 'lName'
+  * gender = "other"
+  * birthDate = $now()
+).identifier.type;

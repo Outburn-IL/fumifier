@@ -1,0 +1,57 @@
+[
+  {
+    "description": "Issue #85 control: explicit identifier.type coding stays single-level without slice pattern injection",
+    "data": null,
+    "result": {
+      "coding": [
+        {
+          "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+          "code": "PPN",
+          "display": "Passport number"
+        }
+      ]
+    },
+    "expr-file": "nested-array-codeableconcept-control.fume"
+  },
+  {
+    "description": "Issue #85 override scenario: slice type.text merges with injected coding without nested arrays",
+    "data": null,
+    "result": {
+      "coding": [
+        {
+          "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+          "code": "PPN",
+          "display": "Passport number"
+        }
+      ],
+      "text": "Passport identifier"
+    },
+    "expr-file": "nested-array-codeableconcept-override.fume"
+  },
+  {
+    "description": "Issue #85 mixed identifiers: sliced and non-sliced identifier types remain flat and ordered",
+    "data": null,
+    "result": [
+      {
+        "text": "Local identifier",
+        "coding": [
+          {
+            "system": "http://example.org/identifier-type",
+            "code": "LOCAL",
+            "display": "Local Identifier"
+          }
+        ]
+      },
+      {
+        "coding": [
+          {
+            "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+            "code": "PPN",
+            "display": "Passport number"
+          }
+        ]
+      }
+    ],
+    "expr-file": "nested-array-codeableconcept-mixed-identifiers.fume"
+  }
+]
