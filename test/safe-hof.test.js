@@ -51,6 +51,34 @@ describe('$safe HOF', function() {
     });
   });
 
+  it('preserves wrapped source details when a saved mapping fails to parse', async function() {
+    const mappingCache = {
+      async getKeys() {
+        return ['syntaxError'];
+      },
+      async get(key) {
+        if (key !== 'syntaxError') {
+          throw new Error(`Unknown mapping: ${key}`);
+        }
+        return '$ + + $';
+      }
+    };
+
+    const expr = await fumifier('$safe($syntaxError)("hello")', { mappingCache });
+    const res = await expr.evaluate({});
+
+    expect(res.ok).to.equal(false);
+    expect(res.result).to.equal(undefined);
+    expect(res.error.code).to.equal('F3002');
+    expect(res.error.message).to.equal('Failed to parse mapping "syntaxError": Syntax error: symbol "+" used in a place where it is not allowed');
+    expect(res.error.message).to.not.contain('[object Object]');
+    expect(res.error.sourceMessage).to.be.a('string');
+    expect(res.error.sourceMessage).to.not.equal(res.error.message);
+    expect(res.error.sourceMessage).to.equal('Syntax error: symbol "+" used in a place where it is not allowed');
+    expect(res.error.sourceErrorCode).to.be.a('string');
+    expect(res.error.sourceErrorCode).to.not.equal('F3002');
+  });
+
   it('sanitizes thrown errors instead of exposing raw nested objects', async function() {
     const expr = await fumifier('$safe($explode)("Patient", "123")');
     expr.assign('explode', async (resourceType, id) => {
