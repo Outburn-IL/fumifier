@@ -181,7 +181,12 @@ const functions = (() => {
     var result;
 
     if (func && func._fumifier_function === true && typeof func.implementation === 'function') {
-      result = func.implementation.apply(self, args);
+      var validatedArgs = args;
+      if (func.signature && typeof func.signature.validate === 'function') {
+        var validationContext = self && typeof self === 'object' && Object.prototype.hasOwnProperty.call(self, 'input') ? self.input : self;
+        validatedArgs = func.signature.validate(args, validationContext);
+      }
+      result = func.implementation.apply(self, validatedArgs);
     } else {
       result = func.apply(self, args);
     }
