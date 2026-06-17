@@ -1,0 +1,12 @@
+(
+  InstanceOf: http://fhir.health.gov.il/StructureDefinition/il-core-patient
+  * identifier[ppn]
+    * type
+    * system = "http://hl7.org/fhir/sid/passport-USA"
+    * value = '123'
+  * name[Hebrew]
+    * given = 'fName'
+    * family = 'lName'
+  * gender = "other"
+  * birthDate = $now()
+).identifier.type;
