@@ -48,6 +48,21 @@ describe('$first HOF', function() {
     expect(res).to.deep.equal({ x: 2 });
   });
 
+  it('short-circuits async predicates after the first match', async function() {
+    const calls = [];
+    const expr = await fumifier('$first([1,2,3,4], $nativeAsync)');
+    expr.assign('nativeAsync', async function (value) {
+      calls.push(value);
+      await new Promise(resolve => setTimeout(resolve, 5));
+      return value >= 2;
+    });
+
+    const res = await expr.evaluate({});
+
+    expect(res).to.equal(2);
+    expect(calls).to.deep.equal([1, 2]);
+  });
+
   it('returns undefined when no item matches', async function() {
     const expr = await fumifier('[1,2] ~> $first(function($v){$v > 10})');
     const res = await expr.evaluate({});

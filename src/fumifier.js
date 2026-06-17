@@ -2372,10 +2372,17 @@ var fumifier = (function() {
         // error parsing the mapping expression - customize error format for mapping context
         const nestedParseError = parseError.error || parseError;
         populateMessage(nestedParseError, this.environment);
+        const sourceMessage = typeof nestedParseError.message === 'string'
+          ? nestedParseError.message
+          : typeof parseError.message === 'string'
+            ? parseError.message
+            : typeof parseError.value === 'string'
+              ? parseError.value
+              : String(nestedParseError);
         throw attachSourceErrorMetadata({
           code: "F3002",
           value: mappingKey,
-          sourceMessage: parseError.message || parseError.value || nestedParseError.message || String(nestedParseError),
+          sourceMessage,
           stack: (new Error()).stack
         }, nestedParseError);
       }

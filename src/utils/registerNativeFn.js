@@ -75,6 +75,10 @@ function registerNativeFn(staticFrame, functionEval) {
   // signature: array, number, function (mapper), optional function (key)
   staticFrame.bind('pLimit', defineFunction(fn.pLimit, '<anff?>'));
   staticFrame.bind('first', defineFunction(fn.first, '<af>'));
+  staticFrame.bind('all', defineFunction(fn.all, '<af>'));
+  staticFrame.bind('any', defineFunction(fn.any, '<af>'));
+  staticFrame.bind('safe', defineFunction(fn.safe, '<f-:f>'));
+  staticFrame.bind('memoize', defineFunction(fn.memoize, '<f-:f>'));
   staticFrame.bind('single', defineFunction(fn.single, '<af?>'));
   staticFrame.bind('reduce', defineFunction(fn.foldLeft, '<afj?:j>')); // TODO <f<jj:j>a<j>j?:j>
   staticFrame.bind('sift', defineFunction(fn.sift, '<o-f?:o>'));

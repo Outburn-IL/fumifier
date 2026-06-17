@@ -10,6 +10,9 @@ License: See the LICENSE file included with this package for the terms that appl
 */
 
 import utils from './utils.js';
+import defineFunction from './defineFunction.js';
+import { attachSourceErrorMetadata } from './diagnostics.js';
+import { populateMessage } from './errorCodes.js';
 
 const functions = (() => {
 
@@ -72,6 +75,133 @@ const functions = (() => {
       return '{' + pairs.join(',') + '}';
     }
     return JSON.stringify(String(value));
+  }
+
+  /**
+   * Build a deterministic, type-tagged cache key for memoized arguments.
+   * Rejects functions and symbols anywhere in the value tree.
+   * @param {*} value - Value to serialize for memoization.
+   * @returns {string} Stable memoization key.
+   */
+  function _stableMemoizeKey(value) {
+    if (typeof value === 'undefined') return 'u';
+    if (value === null) return 'l:null';
+
+    var type = typeof value;
+    if (type === 'string') return 's:' + JSON.stringify(value);
+    if (type === 'number') {
+      if (Number.isNaN(value)) return 'n:NaN';
+      if (value === Infinity) return 'n:Infinity';
+      if (value === -Infinity) return 'n:-Infinity';
+      if (Object.is(value, -0)) return 'n:-0';
+      return 'n:' + JSON.stringify(value);
+    }
+    if (type === 'boolean') return 'b:' + JSON.stringify(value);
+    if (type === 'bigint') return 'g:' + String(value);
+    if (type === 'symbol' || isFunction(value)) {
+      throw {
+        code: 'D3142',
+        stack: (new Error()).stack,
+        value: type === 'symbol' ? String(value) : '$function'
+      };
+    }
+
+    if (Array.isArray(value)) {
+      var arrayParts = new Array(value.length);
+      for (var i = 0; i < value.length; i++) {
+        arrayParts[i] = _stableMemoizeKey(value[i]);
+      }
+      return 'a:[' + arrayParts.join(',') + ']';
+    }
+
+    if (type === 'object') {
+      var keys = Object.keys(value).sort();
+      var objectParts = new Array(keys.length);
+      for (var k = 0; k < keys.length; k++) {
+        var key = keys[k];
+        objectParts[k] = JSON.stringify(key) + ':' + _stableMemoizeKey(value[key]);
+      }
+      return 'o:{' + objectParts.join(',') + '}';
+    }
+
+    return type + ':' + JSON.stringify(String(value));
+  }
+
+  /**
+   * Reduce an error to the safe public fields exposed by $safe().
+   * @param {*} error - Original thrown or rejected value.
+   * @returns {Object} Sanitized error summary.
+   */
+  function sanitizeSafeError(error) {
+    var result = {};
+    if (error && typeof error === 'object') {
+      var explicitSourceMessage = typeof error.sourceMessage === 'string' ? error.sourceMessage : undefined;
+      var explicitSourceErrorCode = typeof error.sourceErrorCode === 'string' ? error.sourceErrorCode : undefined;
+
+      if (typeof error.code === 'string' && (typeof error.message !== 'string' || error.message.length === 0)) {
+        try {
+          populateMessage(error);
+        } catch (_) {
+          // Ignore message population failures and fall back to raw fields below.
+        }
+      }
+
+      if (typeof error.code === 'string') result.code = error.code;
+      if (typeof error.message === 'string') result.message = error.message;
+      attachSourceErrorMetadata(result, error.sourceError || error);
+      if (typeof explicitSourceMessage === 'string') result.sourceMessage = explicitSourceMessage;
+      if (typeof explicitSourceErrorCode === 'string') result.sourceErrorCode = explicitSourceErrorCode;
+    } else {
+      result.message = String(error);
+    }
+
+    return result;
+  }
+
+  /**
+   * Normalize HOF collection input so undefined becomes an empty sequence and
+   * singleton values become a one-item sequence.
+   * @param {*} arr - Raw collection input.
+   * @returns {Array} Normalized collection value.
+   */
+  function normalizeCollectionInput(arr) {
+    if (typeof arr === 'undefined') {
+      return createSequence();
+    }
+
+    if (!Array.isArray(arr)) {
+      return createSequence(arr);
+    }
+
+    return arr;
+  }
+
+  /**
+   * Invoke either a native JavaScript function or a fumifier function wrapper.
+   * @param {*} func - Callable value to invoke.
+   * @param {Object} self - Invocation context.
+   * @param {Array} args - Positional arguments.
+   * @returns {Promise<*>} Callable result.
+   */
+  async function invokeCallable(func, self, args) {
+    var result;
+
+    if (func && func._fumifier_function === true && typeof func.implementation === 'function') {
+      var validatedArgs = args;
+      if (func.signature && typeof func.signature.validate === 'function') {
+        var validationContext = self && typeof self === 'object' && Object.prototype.hasOwnProperty.call(self, 'input') ? self.input : self;
+        validatedArgs = func.signature.validate(args, validationContext);
+      }
+      result = func.implementation.apply(self, validatedArgs);
+    } else {
+      result = func.apply(self, args);
+    }
+
+    if (isPromise(result)) {
+      result = await result;
+    }
+
+    return result;
   }
 
   /**
@@ -1962,6 +2092,125 @@ const functions = (() => {
   }
 
   /**
+     * Determine whether every item in a collection matches a predicate.
+     * Undefined input is treated as an empty collection.
+     * @param {Array|*} [arr] - array (or single value) to test
+     * @param {Function} func - predicate function
+     * @returns {boolean} True when all predicate evaluations are truthy
+     */
+  async function all(arr, func) {
+    arr = normalizeCollectionInput(arr);
+
+    for (var i = 0; i < arr.length; i++) {
+      var entry = arr[i];
+      var func_args = hofFuncArgs(func, entry, i, arr);
+      var res = await func.apply(this, func_args);
+      if (!boolean(res)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+     * Determine whether any item in a collection matches a predicate.
+     * Undefined input is treated as an empty collection.
+     * @param {Array|*} [arr] - array (or single value) to test
+     * @param {Function} func - predicate function
+     * @returns {boolean} True when any predicate evaluation is truthy
+     */
+  async function any(arr, func) {
+    arr = normalizeCollectionInput(arr);
+
+    for (var i = 0; i < arr.length; i++) {
+      var entry = arr[i];
+      var func_args = hofFuncArgs(func, entry, i, arr);
+      var res = await func.apply(this, func_args);
+      if (boolean(res)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+     * Wrap a callable so it returns a result object instead of throwing.
+     * @param {Function} func - function to wrap
+     * @returns {Object} Wrapped fumifier function
+     */
+  function safe(func) {
+    if (!isFunction(func)) {
+      throw {
+        code: 'T0410',
+        stack: (new Error()).stack,
+        token: 'safe',
+        index: 1
+      };
+    }
+
+    return defineFunction(async function() {
+      try {
+        var result = await invokeCallable(func, this, Array.prototype.slice.call(arguments));
+        return {
+          ok: true,
+          result,
+          error: undefined
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          result: undefined,
+          error: sanitizeSafeError(error)
+        };
+      }
+    });
+  }
+
+  /**
+     * Memoize a callable for the lifetime of the returned wrapper.
+     * @param {Function} func - function to memoize
+     * @returns {Object} Wrapped fumifier function
+     */
+  function memoize(func) {
+    if (!isFunction(func)) {
+      throw {
+        code: 'T0410',
+        stack: (new Error()).stack,
+        token: 'memoize',
+        index: 1
+      };
+    }
+
+    var cache = new Map();
+
+    return defineFunction(async function() {
+      var args = Array.prototype.slice.call(arguments);
+      var key = _stableMemoizeKey(args);
+
+      if (cache.has(key)) {
+        return await cache.get(key);
+      }
+
+      var self = this;
+      var pending = Promise.resolve().then(async function() {
+        return await invokeCallable(func, self, args);
+      });
+      cache.set(key, pending);
+
+      try {
+        var resolved = await pending;
+        cache.set(key, Promise.resolve(resolved));
+        return resolved;
+      } catch (error) {
+        cache.delete(key);
+        throw error;
+      }
+    });
+  }
+
+  /**
      * Given an array, find the single element matching a specified condition
      * Throws an exception if the number of matching elements is not exactly one
      * @param {Array} [arr] - array to filter
@@ -2732,7 +2981,7 @@ const functions = (() => {
     match, contains, replace, split, join, startsWith, endsWith, matches, isEmpty, isNumeric: _isNumeric,
     formatNumber, formatBase, number, floor, ceil, round, abs, sqrt, power, random,
     boolean, boolize, not,
-    map, zip, filter, pMap, pLimit, first, single, foldLeft, sift, omitKeys, selectKeys,
+    map, zip, filter, pMap, pLimit, first, all, any, safe, memoize, single, foldLeft, sift, omitKeys, selectKeys,
     keys, lookup, append, exists, spread, merge, reverse, each, error, assert, type, sort, shuffle, distinct,
     base64encode, base64decode,  encodeUrlComponent, encodeUrl, decodeUrlComponent, decodeUrl,
     wait, rightNow, initCapOnce, initCap, uuid, reference, hash
