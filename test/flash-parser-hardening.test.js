@@ -92,7 +92,7 @@ describe('FLASH parser hardening regression', function() {
     this.timeout(720000);
 
     const fpe = await FhirPackageExplorer.create({
-      context: ['il.core.fhir.r4#0.17.0', 'fumifier.test.pkg#0.1.0'],
+      context: ['il.core.fhir.r4#0.21.0', 'fumifier.test.pkg#0.1.0'],
       cachePath: './test/.test-cache',
       fhirVersion: '4.0.1',
       cacheMode: 'lazy'
