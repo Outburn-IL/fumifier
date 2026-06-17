@@ -89,7 +89,13 @@ const functions = (() => {
 
     var type = typeof value;
     if (type === 'string') return 's:' + JSON.stringify(value);
-    if (type === 'number') return 'n:' + JSON.stringify(value);
+    if (type === 'number') {
+      if (Number.isNaN(value)) return 'n:NaN';
+      if (value === Infinity) return 'n:Infinity';
+      if (value === -Infinity) return 'n:-Infinity';
+      if (Object.is(value, -0)) return 'n:-0';
+      return 'n:' + JSON.stringify(value);
+    }
     if (type === 'boolean') return 'b:' + JSON.stringify(value);
     if (type === 'bigint') return 'g:' + String(value);
     if (type === 'symbol' || isFunction(value)) {
