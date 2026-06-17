@@ -10,6 +10,16 @@ import { populateMessage } from './errorCodes.js';
 import { attachSourceErrorMetadata } from './diagnostics.js';
 
 /**
+ * Determine whether a value can be used as a search transform callback.
+ * Accepts native JavaScript functions and fumifier callables that expose apply().
+ * @param {*} value - Candidate transform value.
+ * @returns {boolean} True when the value is callable by the wrapper bridge.
+ */
+function isCallableTransform(value) {
+  return typeof value === 'function' || Boolean(value && (value._fumifier_function === true || value._fumifier_lambda === true) && typeof value.apply === 'function');
+}
+
+/**
  * Creates user-facing wrapper functions for FHIR client operations.
  * These functions are bound to the environment and provide controlled access to the FHIR client.
  * @param {Function} getFhirClient - Function that retrieves the current FHIR client from environment
@@ -196,6 +206,38 @@ function createFhirClientWrappers(getFhirClient) {
     };
   }
 
+  /**
+   * Adapt nested search transform options so expression-defined fumifier callables
+   * cross the wrapper boundary as JavaScript callbacks for fhir-client.
+   * @param {*} options - Raw search options from the expression surface.
+   * @param {Object} environment - Current execution environment.
+   * @returns {*} Original options or a shallow-cloned options object with an adapted transform.
+   */
+  function normalizeSearchOptions(options, environment) {
+    if (!options || typeof options !== 'object') {
+      return options;
+    }
+
+    if (!Object.prototype.hasOwnProperty.call(options, 'transform') || typeof options.transform === 'undefined') {
+      return options;
+    }
+
+    if (typeof options.transform === 'function') {
+      return options;
+    }
+
+    if (!isCallableTransform(options.transform)) {
+      return options;
+    }
+
+    return {
+      ...options,
+      transform: async function(resource, mode, index, entry) {
+        return await options.transform.apply({ environment, input: resource }, [resource, mode, index, entry]);
+      }
+    };
+  }
+
   return {
     /**
      * $search(resourceType, params?, options?) - Search for FHIR resources
@@ -205,7 +247,7 @@ function createFhirClientWrappers(getFhirClient) {
      * @returns {Promise<Object>} Search results
      */
     search: wrapOperation(async function(resourceType, params, options) {
-      return await this.search(resourceType, params, options);
+      return await this.search(resourceType, params, normalizeSearchOptions(options, this.environment));
     }, 'search'),
 
     /**
