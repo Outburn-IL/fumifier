@@ -124,24 +124,30 @@ void async function () {
 // * severity.coding.code = '255604002'
 
 
-[(
-  InstanceOf: Patient
-  * communication
-    * language
-      * coding
-        * system = 'http://acme.org.il/code/lang'
-        * code = 'en'
-      * coding
-        * system = null
-),(
-  InstanceOf: Patient
-  * communication
-    * language
-      * coding
-        * system = 'http://acme.org.il/code/lang'
-        * code = 'fr'
-      * coding
-)]
+// [(
+//   InstanceOf: Patient
+//   * communication
+//     * language
+//       * coding
+//         * system = 'http://acme.org.il/code/lang'
+//         * code = 'en'
+//       * coding
+//         * system = null
+// ),(
+//   InstanceOf: Patient
+//   * communication
+//     * language
+//       * coding
+//         * system = 'http://acme.org.il/code/lang'
+//         * code = 'fr'
+//       * coding
+// )]
+
+
+$info('abc');
+{}.$trace('abc');
+$warn('abc');
+
 `
 ;
 
@@ -181,7 +187,7 @@ void async function () {
 
   try {
     expr.setLogger(console);
-    res = await expr.evaluate(
+    res = await expr.evaluateVerbose(
       {
         resourceType: "Patient"
       },
