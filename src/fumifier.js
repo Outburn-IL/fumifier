@@ -1826,9 +1826,20 @@ var fumifier = (function() {
       if (isLambda(proc)) {
         result = await applyProcedure(proc, validatedArgs);
       } else if (proc && proc._fumifier_function === true) {
+        var executionId = typeof environment.lookup === 'function' ? environment.lookup('executionId') : undefined;
+        if (typeof executionId === 'undefined') {
+          executionId = environment.executionId;
+        }
         var focus = {
           environment: environment,
-          input: input
+          input: input,
+          executionId: executionId,
+          callSite: {
+            position: proc.position,
+            start: proc.start,
+            line: proc.line,
+            token: proc.token
+          }
         };
         // the `focus` is passed in as the `this` for the invoked function
         result = proc.implementation.apply(focus, validatedArgs);
@@ -2372,13 +2383,16 @@ var fumifier = (function() {
         // error parsing the mapping expression - customize error format for mapping context
         const nestedParseError = parseError.error || parseError;
         populateMessage(nestedParseError, this.environment);
-        const sourceMessage = typeof nestedParseError.message === 'string'
-          ? nestedParseError.message
-          : typeof parseError.message === 'string'
-            ? parseError.message
-            : typeof parseError.value === 'string'
-              ? parseError.value
-              : String(nestedParseError);
+        let sourceMessage;
+        if (typeof nestedParseError.message === 'string') {
+          sourceMessage = nestedParseError.message;
+        } else if (typeof parseError.message === 'string') {
+          sourceMessage = parseError.message;
+        } else if (typeof parseError.value === 'string') {
+          sourceMessage = parseError.value;
+        } else {
+          sourceMessage = String(nestedParseError);
+        }
         throw attachSourceErrorMetadata({
           code: "F3002",
           value: mappingKey,
