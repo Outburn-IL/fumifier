@@ -1826,9 +1826,20 @@ var fumifier = (function() {
       if (isLambda(proc)) {
         result = await applyProcedure(proc, validatedArgs);
       } else if (proc && proc._fumifier_function === true) {
+        var executionId = typeof environment.lookup === 'function' ? environment.lookup('executionId') : undefined;
+        if (typeof executionId === 'undefined') {
+          executionId = environment.executionId;
+        }
         var focus = {
           environment: environment,
-          input: input
+          input: input,
+          executionId: executionId,
+          callSite: {
+            position: proc.position,
+            start: proc.start,
+            line: proc.line,
+            token: proc.token
+          }
         };
         // the `focus` is passed in as the `this` for the invoked function
         result = proc.implementation.apply(focus, validatedArgs);
@@ -2372,13 +2383,16 @@ var fumifier = (function() {
         // error parsing the mapping expression - customize error format for mapping context
         const nestedParseError = parseError.error || parseError;
         populateMessage(nestedParseError, this.environment);
-        const sourceMessage = typeof nestedParseError.message === 'string'
-          ? nestedParseError.message
-          : typeof parseError.message === 'string'
-            ? parseError.message
-            : typeof parseError.value === 'string'
-              ? parseError.value
-              : String(nestedParseError);
+        let sourceMessage;
+        if (typeof nestedParseError.message === 'string') {
+          sourceMessage = nestedParseError.message;
+        } else if (typeof parseError.message === 'string') {
+          sourceMessage = parseError.message;
+        } else if (typeof parseError.value === 'string') {
+          sourceMessage = parseError.value;
+        } else {
+          sourceMessage = String(nestedParseError);
+        }
         throw attachSourceErrorMetadata({
           code: "F3002",
           value: mappingKey,
@@ -2441,16 +2455,73 @@ var fumifier = (function() {
 
   // Register user-facing logging functions
   (function registerLoggingFunctions(frame) {
+    /**
+     * Resolve the active execution ID for a helper invocation.
+     * @param {{ executionId?: string, environment: { lookup?: Function, executionId?: string } }} context - Helper invocation context
+     * @returns {string} Execution ID for the active evaluation
+     */
+    function resolveHelperExecutionId(context) {
+      if (typeof context.executionId !== 'undefined') {
+        return context.executionId;
+      }
+
+      const env = context.environment;
+      if (typeof env.lookup === 'function') {
+        const lookedUpExecutionId = env.lookup('executionId');
+        if (typeof lookedUpExecutionId !== 'undefined') {
+          return lookedUpExecutionId;
+        }
+      }
+
+      if (typeof env.executionId !== 'undefined') {
+        return env.executionId;
+      }
+
+      return 'unknown';
+    }
+
+    /**
+     * Build a diagnostic entry for a logging helper invocation.
+     * @param {{ executionId?: string, environment: Object, callSite?: { position?: number, start?: number, line?: number } }} context - Helper invocation context
+     * @param {string} code - Diagnostic code
+     * @param {string} message - Diagnostic message
+     * @param {Object} [extraFields] - Additional fields to copy onto the entry
+     * @returns {Object} Diagnostic entry ready for collection
+     */
+    function buildHelperDiagnosticEntry(context, code, message, extraFields) {
+      const entry = {
+        code,
+        message,
+        executionId: resolveHelperExecutionId(context)
+      };
+
+      if (extraFields) {
+        Object.assign(entry, extraFields);
+      }
+
+      const callSite = context.callSite || {};
+      if (Number.isFinite(callSite.position)) {
+        entry.position = callSite.position;
+      }
+      if (Number.isFinite(callSite.start)) {
+        entry.start = callSite.start;
+      }
+      if (Number.isFinite(callSite.line)) {
+        entry.line = callSite.line;
+      }
+
+      return entry;
+    }
+
     // $warn(message) -> F5320
     var warnImpl = defineFunction(function(message) {
       const msg = fn.string(message);
       const env = this.environment;
-      const execId = env.executionId || 'unknown';
-      const entry = { code: 'F5320', message: msg, executionId: execId };
+      const entry = buildHelperDiagnosticEntry(this, 'F5320', msg);
       const act = decide(entry.code, env);
       if (act.shouldLog) {
         const logger = env.lookup(SYM.logger) || createDefaultLogger();
-        logger.warn(`[${execId}] ${msg}`);
+        logger.warn(`[${entry.executionId}] ${msg}`);
       }
       push(env, entry);
       return undefined;
@@ -2462,12 +2533,11 @@ var fumifier = (function() {
     frame.bind('info', defineFunction(function(message) {
       const msg = fn.string(message);
       const env = this.environment;
-      const execId = env.executionId || 'unknown';
-      const entry = { code: 'F5500', message: msg, executionId: execId };
+      const entry = buildHelperDiagnosticEntry(this, 'F5500', msg);
       const act = decide(entry.code, env);
       if (act.shouldLog) {
         const logger = env.lookup(SYM.logger) || createDefaultLogger();
-        logger.info(`[${execId}] ${msg}`);
+        logger.info(`[${entry.executionId}] ${msg}`);
       }
       push(env, entry);
       return undefined;
@@ -2479,13 +2549,12 @@ var fumifier = (function() {
       const val = value;
       const lbl = fn.string(label);
       const proj = (typeof projection === 'undefined') ? val : projection;
-      const execId = env.executionId || 'unknown';
       const msg = `${lbl}: ${fn.string(proj)}`;
-      const entry = { code: 'F5600', message: msg, label: lbl, value: val, executionId: execId };
+      const entry = buildHelperDiagnosticEntry(this, 'F5600', msg, { label: lbl, value: val });
       const act = decide(entry.code, env);
       if (act.shouldLog) {
         const logger = env.lookup(SYM.logger) || createDefaultLogger();
-        logger.debug(`[${execId}] ${msg}`);
+        logger.debug(`[${entry.executionId}] ${msg}`);
       }
       push(env, entry);
       return val;
