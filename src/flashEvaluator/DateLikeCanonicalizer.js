@@ -74,7 +74,7 @@ export default class DateLikeCanonicalizer {
   /**
    * Canonicalize a FHIR date-like primitive value.
    * @param {Object} expr Expression with FHIR context for error reporting
-  * @param {string|number} inputValue Input value to canonicalize
+   * @param {string|number} inputValue Input value to canonicalize
    * @param {('date'|'dateTime'|'instant')} fhirTypeCode The FHIR type code
    * @param {string} elementFlashPath Element flash path for diagnostics
    * @param {Object} environment Execution environment (used by jsonata datetime)
@@ -85,7 +85,7 @@ export default class DateLikeCanonicalizer {
     const originalStr = fn.string(inputValue);
 
     if (typeof inputValue === 'number') {
-      if (!Number.isFinite(inputValue) || Math.abs(inputValue) > MAX_EPOCH_MILLIS || Number.isNaN(new Date(inputValue).valueOf())) {
+      if (!Number.isFinite(inputValue) || Math.abs(inputValue) > MAX_EPOCH_MILLIS) {
         return this._createF5111ErrorOrDowngrade(expr, originalStr, elementFlashPath, fhirTypeCode, policy);
       }
 
