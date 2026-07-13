@@ -1,0 +1,2 @@
+(InstanceOf: Patient
+* birthDate = 0).birthDate

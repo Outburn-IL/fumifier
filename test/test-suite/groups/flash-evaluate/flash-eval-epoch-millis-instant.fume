@@ -1,0 +1,4 @@
+(InstanceOf: Observation
+* status = 'final'
+* code.text = 'abc'
+* issued = 0).issued

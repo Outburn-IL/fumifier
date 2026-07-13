@@ -1,0 +1,8 @@
+{
+  "skip": false,
+  "description": "Out-of-range epoch millis assigned into Patient.birthDate - must raise F5111",
+  "data": {},
+  "bindings": {},
+  "code": "F5111",
+  "expr-file": "flash-eval-error-epoch-millis-range.fume"
+}
