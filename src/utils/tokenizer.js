@@ -227,9 +227,9 @@ export default function (path) {
     if (currentChar === '/' && path.charAt(position + 1) === '*') {
       position += 2;
       start = position; // remember the start of the comment
+      let commentDepth = 1;
       currentChar = path.charAt(position);
-      while (!(currentChar === '*' && path.charAt(position + 1) === '/')) {
-        currentChar = path.charAt(++position);
+      while (commentDepth > 0) {
         if (position >= length) {
           // no closing tag
           throw {
@@ -247,6 +247,14 @@ export default function (path) {
           currentChar = path.charAt(position);
           lineStart = position;
           lineIndent = '';
+        } else if (currentChar === '/' && path.charAt(position + 1) === '*') {
+          commentDepth ++;
+          position += 2;
+          currentChar = path.charAt(position);
+        } else if (currentChar === '*' && path.charAt(position + 1) === '/') {
+          commentDepth --;
+          position += 2;
+          currentChar = path.charAt(position);
         } else if ('\r\n'.indexOf(currentChar) > -1) {
           // POSIX (\n) or old pre-OS X Macs Style (\r)
           position ++;
@@ -254,10 +262,10 @@ export default function (path) {
           currentChar = path.charAt(position);
           lineStart = position;
           lineIndent = '';
+        } else {
+          currentChar = path.charAt(++position);
         }
       }
-      position += 2;
-      currentChar = path.charAt(position);
       return next(hasLeftContext); // need this to swallow any following whitespace
     }
     start = position; // remember the start of the token
