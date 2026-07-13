@@ -5,9 +5,10 @@ import fumifier from '../src/fumifier.js';
 import { FhirSnapshotGenerator } from 'fhir-snapshot-generator';
 import { FhirStructureNavigator } from '@outburn/structure-navigator';
 import { FhirPackageExplorer } from 'fhir-package-explorer';
+import { FhirTerminologyRuntime } from 'fhir-terminology-runtime';
 
 // var context = ['il.core.fhir.r4#0.21.0', 'fumifier.test.pkg#0.1.0'];
-var context = ['il.szmc.fhir.r4#0.3.3'];
+var context = ['il.tasmc.fhir.r4#0.9.5'];
 
 void async function () {
   // Create shared FhirPackageExplorer instance
@@ -23,132 +24,14 @@ void async function () {
   var generator = await FhirSnapshotGenerator.create({ fpe, fhirVersion: '4.0.1', cacheMode: 'lazy' });
   var navigator = new FhirStructureNavigator(generator);
 
-  var expression = `
-// InstanceOf: dual-assignment-test-profile
-// * name
-//   * given = 'John'
-//   * family = 'Doe'
-// // should create a single entry in identifier array
-// // should include system, value, and use
-// // since the TestSlice is max=1
-// * identifier[TestSlice].value = '12345'
-// * identifier[TestSlice].use = 'official'
+  var ftr = await FhirTerminologyRuntime.create({ fpe });
 
-
-
-// (InstanceOf: ILHDPCondition
-// * identifier
-//   * system = 'urn:ietf:rfc:3986'
-//   * value = 'urn:uuid:550e8400-e29b-41d4-a716-446655440000'
-// * category.coding.code = 'problem-list-item'
-// * code.text = 'Diabetes mellitus type 2'
-// * subject.reference = 'Patient/12345'
-// * recordedDate = '2024-06-01T10:00:00Z'
-// * recorder.display = 'Dr. Jane Smith'
-// * severity.coding.code = '255604002');
-// $trace('additional info');
-
-// InstanceOf: il-core-patient
-// * identifier[il-id].value = '123'
-// * name
-//   * given = 'John'
-//   * family = 'Doe'
-// * gender = 'unknown'
-// * birthDate = '1985'
-// * address.extension[language].value = 'en'
-
-
-// * maritalStatus.coding.code = 'UNK'
-// * address.city.extension[cityCode].value.coding.code = '4000'
-
-// InstanceOf: TestSliceValidation
-// * status = 'unknown'
-// * code.coding[OptionalSlice]
-
-// Instance: '123'
-// InstanceOf: TestSliceValidation
-// $a := 'b'
-// * status = 'unknown'; 
-// * code.coding[MandatorySlice].display = $a;
-// $a := 'b';
-
-// $mapping1('other');
-
-// InstanceOf: bp
-// * component[SystolicBP].value = 120
-// * component[DiastolicBP].value = 80
-// * status = 'final'
-// * subject.reference = 'Patient/12345'
-// * effectiveDateTime = '2020-01-01T12:00:00Z'
-
-
-
-// InstanceOf: bp
-// * status = 'final'
-// * subject.reference = 'Patient/123'
-// * effectiveDateTime = '2023-10-01T00:00:00Z'
-// * component[SystolicBP].value.value = '120.00'
-// * component[DiastolicBP].value.value = '80.00'
-
-  // * extension[ext-il-hmo].value.coding
-  //   * code = '101-nope'
-  // * display = 'Custom HMO Name'
-
-
-// InstanceOf: ILHDPCondition
-// * identifier.value = 'COND-001'
-// * category.coding
-//   * system = "http://terminology.hl7.org/CodeSystem/condition-category"
-//   * code = "encounter-diagnosis"
-//   * display = "Encounter Diagnosis"
-// * code.text = "Hypertension"
-// * subject.reference = "Patient/12345"
-// * recordedDate = "2023-01-15T08:00:00Z"
-// * recorder.display = "Dr. Alice Smith"
-// * severity.coding
-
-
-// InstanceOf: SZMCCondition
-// * identifier
-//   * system = 'urn:ietf:rfc:3986'
-//   * value = 'urn:uuid:550e8400-e29b-41d4-a716-446655440000'
-// * id = 'abc123'
-// * clinicalStatus
-//   * coding.code = 'active'
-//   * coding[szmc].code = '2'
-// * category.coding.code = 'problem-list-item'
-// * code.text = 'Diabetes mellitus type 2'
-// * subject.reference = 'Patient/12345'
-// * recordedDate = '2024-06-01T10:00:00Z'
-// * recorder.display = 'Dr. Jane Smith'
-// * severity.coding.code = '255604002'
-
-
-// [(
-//   InstanceOf: Patient
-//   * communication
-//     * language
-//       * coding
-//         * system = 'http://acme.org.il/code/lang'
-//         * code = 'en'
-//       * coding
-//         * system = null
-// ),(
-//   InstanceOf: Patient
-//   * communication
-//     * language
-//       * coding
-//         * system = 'http://acme.org.il/code/lang'
-//         * code = 'fr'
-//       * coding
-// )]
-
-
-$info('abc');
-{}.$trace('abc');
-$warn('abc');
-
-`
+  var expression = `// line 1
+  // line 2
+  // line 3
+  // line 4
+          $search($, params)
+  `
 ;
 
   console.log('Starting debug script...');
@@ -174,7 +57,8 @@ $warn('abc');
     console.log('Compiling expression...');
     expr = await fumifier(expression, {
       navigator,
-      mappingCache
+      mappingCache,
+      terminologyRuntime: ftr
     });
     console.log('Expression compiled successfully');
   } catch (e) {
@@ -189,7 +73,16 @@ $warn('abc');
     expr.setLogger(console);
     res = await expr.evaluateVerbose(
       {
-        resourceType: "Patient"
+        "encounter_adm_id": "adm-111",
+        "followUp_medical_record": "fol-111",
+        "release_medical_record": "rel-111",
+        "record_type": "6",
+        "release_date": "2026-01-29",
+        "unit": "10038",
+        "subject": "6105942",
+        "admission_entry_date": "2026-01-25",
+        "unit_satellite": "102",
+        "encounter_id": "13705968"
       },
       {
         // logLevel: 50,
