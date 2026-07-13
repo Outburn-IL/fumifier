@@ -1,0 +1,2 @@
+(InstanceOf: Patient
+* deceasedDateTime = 0).deceasedDateTime

@@ -1,0 +1,8 @@
+{
+  "skip": false,
+  "description": "Assignment of epoch millis into Patient.birthDate - should canonicalize to UTC date",
+  "data": {},
+  "bindings": {},
+  "result": "1970-01-01",
+  "expr-file": "flash-eval-epoch-millis-date.fume"
+}
