@@ -69,7 +69,8 @@ export default class PrimitiveValidator {
 
     // Route: date-like canonicalization
     const isDateLike = fhirTypeCode === 'date' || fhirTypeCode === 'dateTime' || fhirTypeCode === 'instant';
-    if (isDateLike && valueType === 'string') {
+    const isDateLikeInputType = valueType === 'string' || valueType === 'number';
+    if (isDateLike && isDateLikeInputType) {
       return DateLikeCanonicalizer.canonicalize(
         expr,
         input,
