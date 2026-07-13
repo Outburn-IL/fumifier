@@ -10,6 +10,7 @@ License: See the LICENSE file included with this package for the terms that appl
 */
 
 import utils from './utils.js';
+import resolveFormatPictureAlias from './pictureAliases.js';
 
 /**
  * DateTime formatting and parsing functions
@@ -1349,7 +1350,7 @@ const dateTime = (function () {
       return undefined;
     }
 
-    return formatDateTime.call(this, millis, picture, timezone);
+    return formatDateTime.call(this, millis, resolveFormatPictureAlias(picture), timezone);
   }
 
   return {
