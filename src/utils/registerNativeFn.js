@@ -116,7 +116,7 @@ function registerNativeFn(staticFrame, functionEval) {
   staticFrame.bind('isNumeric', defineFunction(fn.isNumeric, '<j-:b>'));
   staticFrame.bind('stringify', defineFunction(fn.stringify, '<x-b?:s>'));
   staticFrame.bind('wait', defineFunction(fn.wait), '<n->');
-  staticFrame.bind('rightNow', defineFunction(fn.rightNow), '<:n>');
+  staticFrame.bind('rightNow', defineFunction(fn.rightNow), '<s?s?:x>');
   staticFrame.bind('initCapOnce', defineFunction(fn.initCapOnce, '<s-:s>'));
   staticFrame.bind('initCap', defineFunction(fn.initCap, '<s-:s>'));
   staticFrame.bind('uuid', defineFunction(fn.uuid, '<j?:s>'));

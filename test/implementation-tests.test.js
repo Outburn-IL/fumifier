@@ -174,6 +174,76 @@ describe("Functions with side-effects", () => {
     });
   });
 
+  describe("$rightNow() returns milliseconds since the epoch", function() {
+    it("should return result object", async function() {
+      var expr = await fumifier("$rightNow()");
+      var result = await expr.evaluate(testdata2);
+      expect(result).to.be.a("number");
+      expect(result).to.be.above(1474934400000);
+    });
+  });
+
+  describe("$rightNow() returns different values within an expression", function() {
+    it("should return result object", async function() {
+      var expr = await fumifier('($now := $rightNow(); $wait(10); $now != $rightNow())');
+      var result = await expr.evaluate(testdata2);
+      expect(result).to.equal(true);
+    });
+  });
+
+  describe("$rightNow() returns timestamp with defined format and timezone", function() {
+    it("should return result object", async function() {
+      var expr = await fumifier("$rightNow('[h]:[M01][P] [z]', '-0500')");
+      var result = expr.evaluate(testdata2);
+      expect(result).to.eventually.match(/^\d?\d:\d\d[ap]m GMT-05:00$/);
+    });
+  });
+
+  describe("$rightNow() supports picture aliases", function() {
+    it("should return formatted values for each alias", async function() {
+      var expr = await fumifier('{"date": $rightNow("date"), "dateTime": $rightNow("dateTime"), "instant": $rightNow("instant"), "time": $rightNow("time")}');
+      var result = await expr.evaluate(testdata2);
+      expect(result.date).to.match(/^\d\d\d\d-\d\d-\d\d$/);
+      expect(result.dateTime).to.match(/^\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(?:Z|[+-]\d\d:\d\d)$/);
+      expect(result.instant).to.match(/^\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d\.\d\d\d(?:Z|[+-]\d\d:\d\d)$/);
+      expect(result.time).to.match(/^\d\d:\d\d:\d\d\.\d\d\d$/);
+    });
+  });
+
+  describe("$now() supports picture aliases", function() {
+    it("should return formatted values for each alias", async function() {
+      var expr = await fumifier('{"date": $now("date"), "dateTime": $now("dateTime"), "instant": $now("instant"), "time": $now("time")}');
+      var result = await expr.evaluate(testdata2);
+      expect(result.date).to.match(/^\d\d\d\d-\d\d-\d\d$/);
+      expect(result.dateTime).to.match(/^\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(?:Z|[+-]\d\d:\d\d)$/);
+      expect(result.instant).to.match(/^\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d\.\d\d\d(?:Z|[+-]\d\d:\d\d)$/);
+      expect(result.time).to.match(/^\d\d:\d\d:\d\d\.\d\d\d$/);
+    });
+  });
+
+  describe("$fromMillis() supports picture aliases", function() {
+    it("should return deterministic formatted values", async function() {
+      var expr = await fumifier('{"date": $fromMillis(0, "date"), "dateTime": $fromMillis(0, "dateTime"), "instant": $fromMillis(0, "instant"), "time": $fromMillis(0, "time"), "dateTimeTz": $fromMillis(0, "dateTime", "-0500")}');
+      var result = await expr.evaluate(testdata2);
+      var expected = {
+        date: "1970-01-01",
+        dateTime: "1970-01-01T00:00:00Z",
+        instant: "1970-01-01T00:00:00.000Z",
+        time: "00:00:00.000",
+        dateTimeTz: "1969-12-31T19:00:00-05:00"
+      };
+      expect(result).to.deep.equal(expected);
+    });
+  });
+
+  describe("$fromMillis() preserves non-alias raw picture strings", function() {
+    it("should leave raw picture behavior unchanged", async function() {
+      var expr = await fumifier("$fromMillis(0, '[Y0001]-[M01]-[D01]', '-0500')");
+      var result = await expr.evaluate(testdata2);
+      expect(result).to.equal("1969-12-31");
+    });
+  });
+
   describe("$millis() returns milliseconds since the epoch", function() {
     it("should return result object", async function() {
       var expr = await fumifier("$millis()");

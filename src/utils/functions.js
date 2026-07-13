@@ -11,6 +11,7 @@ License: See the LICENSE file included with this package for the terms that appl
 
 import utils from './utils.js';
 import defineFunction from './defineFunction.js';
+import datetime from './datetime.js';
 import { attachSourceErrorMetadata } from './diagnostics.js';
 import { populateMessage } from './errorCodes.js';
 
@@ -2889,10 +2890,17 @@ const functions = (() => {
   /**
      * Like $millis(), returns the current dateTime in milliseconds,
      * but unlike $millis(), will return a new value in each invokation instead of the registered timestamp
-     * @returns {number} milliseconds since midnight, January 1, 1970 UTC
+     * @param {string} [picture] - optional format picture or alias
+     * @param {string} [timezone] - optional timezone used when formatting
+     * @returns {number|string} milliseconds since midnight, January 1, 1970 UTC or a formatted timestamp
      */
-  function rightNow () {
+  function rightNow (picture, timezone) {
     const now = new Date();
+
+    if (typeof picture !== 'undefined') {
+      return datetime.fromMillis(now.getTime(), picture, timezone);
+    }
+
     return now.getTime();
   }
 
