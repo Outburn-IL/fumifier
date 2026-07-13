@@ -25,9 +25,13 @@ const RE_TZ_CAPTURE = /([+-]\d{2}):(\d{2})$/;
 const RE_YEAR_ONLY = /^\d{4}$/;
 const RE_YEAR_MONTH = /^\d{4}-\d{2}$/;
 const RE_T_24 = /T24:/;
+const MAX_EPOCH_MILLIS = 8640000000000000;
+const UTC_TIMEZONE = '0000';
+const DATE_PICTURE = '[Y0001]-[M01]-[D01]';
+const UTC_TIMESTAMP_PICTURE = '[Y0001]-[M01]-[D01]T[H01]:[m01]:[s01].[f001][Z01:01t]';
 
 /**
- * Canonicalize a date-like primitive string according to FHIR + JSONata datetime semantics.
+ * Canonicalize a date-like primitive value according to FHIR + JSONata datetime semantics.
  * Handles: date | dateTime | instant
  *
  * Behavior:
@@ -39,7 +43,7 @@ const RE_T_24 = /T24:/;
  * - Throws via policy.enforce when applicable
  *
  * @param {Object} expr - Expression with FHIR context
- * @param {string} inputStr - Raw input string
+ * @param {string|number} inputValue - Raw input value
  * @param {string} fhirTypeCode - One of 'date' | 'dateTime' | 'instant'
  * @param {string} elementFlashPath - For error reporting
  * @param {Object} environment - Execution environment
@@ -70,15 +74,27 @@ export default class DateLikeCanonicalizer {
   /**
    * Canonicalize a FHIR date-like primitive value.
    * @param {Object} expr Expression with FHIR context for error reporting
-   * @param {string} inputStr Input value to canonicalize
+  * @param {string|number} inputValue Input value to canonicalize
    * @param {('date'|'dateTime'|'instant')} fhirTypeCode The FHIR type code
    * @param {string} elementFlashPath Element flash path for diagnostics
    * @param {Object} environment Execution environment (used by jsonata datetime)
    * @param {Object} policy Active validation policy
    * @returns {string} Canonicalized value (or original when downgraded/inhibited)
    */
-  static canonicalize(expr, inputStr, fhirTypeCode, elementFlashPath, environment, policy) {
-    const originalStr = fn.string(inputStr);
+  static canonicalize(expr, inputValue, fhirTypeCode, elementFlashPath, environment, policy) {
+    const originalStr = fn.string(inputValue);
+
+    if (typeof inputValue === 'number') {
+      if (!Number.isFinite(inputValue) || Math.abs(inputValue) > MAX_EPOCH_MILLIS || Number.isNaN(new Date(inputValue).valueOf())) {
+        return this._createF5111ErrorOrDowngrade(expr, originalStr, elementFlashPath, fhirTypeCode, policy);
+      }
+
+      if (fhirTypeCode === 'date') {
+        return dateTime.fromMillis(inputValue, DATE_PICTURE, UTC_TIMEZONE);
+      }
+
+      return dateTime.fromMillis(inputValue, UTC_TIMESTAMP_PICTURE, UTC_TIMEZONE);
+    }
 
     // If regex-band validation is inhibited entirely, keep original value (no parsing, no truncation)
     if (!policy.shouldValidate('F5110')) {
