@@ -1756,15 +1756,15 @@ var fumifier = (function() {
       if(typeof proc === 'object') {
         proc.token = procName;
         proc.position = expr.position;
-        proc.start = expr.start;
+        proc.start = typeof expr.procedure?.start === 'number' ? expr.procedure.start : expr.start;
         proc.line = expr.line;
       }
       result = await apply(proc, evaluatedArgs, input, environment);
     } catch (err) {
-      if(!err.position) {
+      if(!Number.isFinite(err.position)) {
         // add the position field to the error
         err.position = expr.position;
-        err.start = expr.start;
+        err.start = typeof expr.procedure?.start === 'number' ? expr.procedure.start : expr.start;
         err.line = expr.line;
       }
       if (!err.token) {
@@ -1871,9 +1871,15 @@ var fumifier = (function() {
         if (typeof err.token === 'undefined' && typeof proc.token !== 'undefined') {
           err.token = proc.token;
         }
-        err.position = proc.position || err.position;
-        err.start = proc.start || err.start;
-        err.line = proc.line || err.line;
+        if (Number.isFinite(proc.position)) {
+          err.position = proc.position;
+        }
+        if (Number.isFinite(proc.start)) {
+          err.start = proc.start;
+        }
+        if (Number.isFinite(proc.line)) {
+          err.line = proc.line;
+        }
       }
       throw err;
     }
