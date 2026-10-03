@@ -159,7 +159,7 @@ function createFhirClientWrappers(getFhirClient) {
 
   /**
    * Wraps FHIR client operations to handle errors consistently
-   * @param {Function} operation - The FHIR client operation to call
+  * @param {Function} operation - Called on the FHIR client with the invocation environment first, then expression arguments
    * @param {string} operationName - Name of operation for error messages
    * @returns {Function} Wrapped operation
    */
@@ -168,7 +168,7 @@ function createFhirClientWrappers(getFhirClient) {
       const client = getClientOrThrow(this.environment, operationName);
       if (!client) return undefined; // Client not configured and error was suppressed
       try {
-        return await operation.call(client, ...args);
+        return await operation.call(client, this.environment, ...args);
       } catch (err) {
         // Check if it's a timeout error
         if (err.name === 'AbortError' || (err.message && err.message.includes('timeout'))) {
@@ -246,8 +246,8 @@ function createFhirClientWrappers(getFhirClient) {
      * @param {Object} options - Search options
      * @returns {Promise<Object>} Search results
      */
-    search: wrapOperation(async function(resourceType, params, options) {
-      return await this.search(resourceType, params, normalizeSearchOptions(options, this.environment));
+    search: wrapOperation(async function(environment, resourceType, params, options) {
+      return await this.search(resourceType, params, normalizeSearchOptions(options, environment));
     }, 'search'),
 
     /**
