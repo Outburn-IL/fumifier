@@ -30,12 +30,39 @@ const { boolize } = fn;
 // Destructure common helpers from utils to use as globals in this module
 const { isNumeric, isArrayOfNumbers, isArrayOfStrings, createSequence, isSequence, isFunction, isIterable, getFunctionArity, isDeepEqual, isPromise, isLambda } = utils;
 import { populateMessage } from './utils/errorCodes.js';
-import defineFunction from './utils/defineFunction.js';
+import createFunctionDefinition from './utils/defineFunction.js';
+import compileArgumentValidator, { parseSignatureStructure as parseSignatureStructureImpl } from './utils/signature.js';
 import registerNativeFn from './utils/registerNativeFn.js';
 import createFlashEvaluator from './flashEvaluator.js';
-import { createDefaultLogger, SYM, decide, push, thresholds, severityFromCode, LEVELS, attachSourceErrorMetadata } from './utils/diagnostics.js';
+import { createDefaultLogger, SYM, decide, push, thresholds, severityFromCode, LEVELS, DEFAULT_THRESHOLDS, attachSourceErrorMetadata } from './utils/diagnostics.js';
 import createFhirClientWrappers from './utils/fhirClientWrappers.js';
 import createTerminologyWrappers from './utils/terminologyWrappers.js';
+
+/**
+ * @typedef SignatureDescriptor
+ * @property {string} type
+ * @property {SignatureDescriptor | {arguments: SignatureDescriptor[], returnType?: SignatureDescriptor}} [subtype]
+ * @property {SignatureDescriptor[]} [choice]
+ * @property {boolean} optional
+ * @property {boolean} contextDefault
+ * @property {boolean} repeated
+ */
+
+/**
+ * @typedef SignatureInspection
+ * @property {SignatureDescriptor[]} arguments
+ * @property {SignatureDescriptor} [returnType]
+ * @property {boolean} hasFunctionType
+ */
+
+/**
+ * @param {(this: NativeInvocationContext, ...args: any[]) => any} implementation
+ * @param {string} [signature]
+ * @returns {{_fumifier_function: boolean, implementation: (this: NativeInvocationContext, ...args: any[]) => any, signature?: {definition: string, validate: (args: any[], context: any) => any[]}}}
+ */
+export function defineFunction(implementation, signature) {
+  return createFunctionDefinition(implementation, signature);
+}
 
 /**
  * FumifierError class - represents errors thrown by Fumifier during parsing or evaluation
@@ -122,6 +149,23 @@ class FumifierError extends Error {
 }
 
 /**
+ * Returns parsed argument/return declarations, modifiers and nested types.
+ * This checks declaration syntax, not actual call values or returned values.
+ * Syntax failures are exposed as registered FumifierError instances.
+ * @param {string} signature
+ * @returns {SignatureInspection}
+ */
+export function parseSignatureStructure(signature) {
+  try {
+    return parseSignatureStructureImpl(signature);
+  } catch (error) {
+    const failure = new FumifierError(error.code || 'S0201', undefined, error);
+    populateMessage(failure);
+    throw failure;
+  }
+}
+
+/**
  * @typedef {import('@outburn/structure-navigator').FhirStructureNavigatorInterface} FhirStructureNavigatorInterface
  */
 
@@ -145,8 +189,31 @@ class FumifierError extends Error {
 
 /**
  * @typedef MappingCacheInterface
+ * @description Definition caches fail closed on key/definition lookup errors. Scope snapshots are shallow and memoized per evaluation; owners are responsible for deep freezing their data.
  * @property {() => Promise<string[]>} getKeys - Get the list of available mapping names.
  * @property {(key: string) => Promise<string>} get - Get a mapping expression by key/name.
+ * @property {(key: string) => MappingDefinition | undefined | Promise<MappingDefinition | undefined>} [getDefinition] Get a captured mapping definition.
+ */
+
+/**
+ * @typedef EvaluationScope
+ * @property {Record<string, unknown>} bindings Scope bindings.
+ * @property {MappingCacheInterface} mappingCache Callable mappings only.
+ */
+
+/**
+ * @typedef MappingDefinition
+ * @property {string} expression Mapping source.
+ * @property {string} [signature] Input validation signature.
+ * @property {EvaluationScope} [scope] Explicit clean evaluation scope.
+ */
+
+/**
+ * @typedef NativeInvocationContext
+ * @property {any} environment Active environment.
+ * @property {any} input Active input.
+ * @property {string} executionId Execution identity.
+ * @property {(definition: MappingDefinition, input?: unknown, bindings?: Record<string, unknown>, options?: {signal?: AbortSignal}) => Promise<unknown>} evaluateMapping Captured mapping executor.
  */
 
 /**
@@ -183,6 +250,8 @@ class FumifierError extends Error {
  * @property {string[] | (() => string[])} [namedFhirConnectionNames]
  *   Override configured named FHIR connection names for this evaluation only.
  * @property {MappingCacheInterface} [mappingCache] Override mapping cache for this evaluation only.
+ * @property {EvaluationScope} [evaluationScope] Explicit clean scope for this evaluation.
+ * @property {AbortSignal} [signal] Cooperative cancellation signal.
  */
 
 /**
@@ -192,7 +261,7 @@ class FumifierError extends Error {
  * @property {(input: any, bindings?: Record<string, any>, runtimeOptions?: RuntimeOptions) => Promise<{ ok: boolean, status: number, result: any, diagnostics: any }>} evaluateVerbose
  *   Like evaluate(), but never throws for handled errors; returns a report with diagnostics and HTTP-like status.
  * @property {(name: string | symbol, value: any) => void} assign Assign a value to a variable in the compilation scope.
- * @property {(name: string, implementation: (this: {environment:any, input:any}, ...args: any[]) => any, signature?: string) => void} registerFunction
+ * @property {(name: string, implementation: (this: NativeInvocationContext, ...args: any[]) => any, signature?: string) => void} registerFunction
  *   Register a custom function available to the expression. Optional JSONata signature string is supported.
  * @property {(newLogger: Logger) => void} setLogger
  *   Set a logger implementation; defaults to console-based logger.
@@ -205,20 +274,39 @@ class FumifierError extends Error {
  */
 
 var fumifier = (function() {
+  const entryHook = Symbol.for('fumifier.__evaluate_entry');
+  const exitHook = Symbol.for('fumifier.__evaluate_exit');
+  const frameHook = Symbol.for('fumifier.__createFrame_push');
+
+  /** @param {Object} environment */
+  function getDebugHooks(environment) {
+    if (environment.hookVersion !== environment.hookState.revision) {
+      environment.debugHooks = {
+        [entryHook]: environment.lookup(entryHook),
+        [exitHook]: environment.lookup(exitHook),
+        [frameHook]: environment.lookup(frameHook)
+      };
+      environment.hookVersion = environment.hookState.revision;
+    }
+    return environment.debugHooks;
+  }
 
   // Create frame
   /**
    *
    */
   function createFrame(enclosingEnvironment) {
-    var bindings = {};
+    var bindings = { __proto__: null };
     const newFrame = {
       bind: function (name, value) {
         bindings[name] = value;
+        if (typeof name === 'symbol' && (name === entryHook || name === exitHook || name === frameHook)) {
+          newFrame.hookState.revision++;
+        }
       },
       lookup: function (name) {
         var value;
-        if(Object.prototype.hasOwnProperty.call(bindings, name)) {
+        if(name in bindings) {
           value = bindings[name];
         } else if (enclosingEnvironment) {
           value = enclosingEnvironment.lookup(name);
@@ -226,6 +314,10 @@ var fumifier = (function() {
         return value;
       },
       timestamp: enclosingEnvironment ? enclosingEnvironment.timestamp : null,
+      evaluationState: enclosingEnvironment ? enclosingEnvironment.evaluationState : undefined,
+      debugHooks: enclosingEnvironment ? enclosingEnvironment.debugHooks : undefined,
+      hookVersion: enclosingEnvironment ? enclosingEnvironment.hookVersion : 0,
+      hookState: enclosingEnvironment ? enclosingEnvironment.hookState : { revision: 0 },
       async: enclosingEnvironment ? enclosingEnvironment.async : false,
       isParallelCall: enclosingEnvironment ? enclosingEnvironment.isParallelCall : false,
       global: enclosingEnvironment ? enclosingEnvironment.global : {
@@ -233,8 +325,9 @@ var fumifier = (function() {
       }
     };
 
+    if (!enclosingEnvironment) newFrame.names = function () { return Object.keys(bindings); };
     if (enclosingEnvironment) {
-      var framePushCallback = enclosingEnvironment.lookup(Symbol.for('fumifier.__createFrame_push'));
+      var framePushCallback = getDebugHooks(enclosingEnvironment)?.[frameHook];
       if(framePushCallback) {
         framePushCallback(enclosingEnvironment, newFrame);
       }
@@ -340,10 +433,9 @@ var fumifier = (function() {
      * @returns {Promise<any>} Evaluated input data
      */
   async function evaluate(expr, input, environment) {
-
     var result;
 
-    var entryCallback = environment.lookup(Symbol.for('fumifier.__evaluate_entry'));
+    var entryCallback = getDebugHooks(environment)?.[entryHook];
     if(entryCallback) {
       await entryCallback(expr, input, environment);
     }
@@ -424,7 +516,7 @@ var fumifier = (function() {
       result = await evaluateGroupExpression(expr.group, result, environment);
     }
 
-    var exitCallback = environment.lookup(Symbol.for('fumifier.__evaluate_exit'));
+    var exitCallback = getDebugHooks(environment)?.[exitHook];
     if(exitCallback) {
       await exitCallback(expr, input, environment, result);
     }
@@ -1903,6 +1995,7 @@ var fumifier = (function() {
   async function applyInner(proc, args, input, environment) {
     var result;
     try {
+      checkCancellation(environment);
       var validatedArgs = args;
       if (proc) {
         validatedArgs = validateArguments(proc.signature, args, input);
@@ -1919,6 +2012,7 @@ var fumifier = (function() {
           environment: environment,
           input: input,
           executionId: executionId,
+          evaluateMapping: evaluateMappingFromContext,
           callSite: {
             position: proc.position,
             start: proc.start,
@@ -1968,6 +2062,7 @@ var fumifier = (function() {
       }
       throw err;
     }
+    checkCancellation(environment);
     return result;
   }
 
@@ -1992,7 +2087,7 @@ var fumifier = (function() {
       procedure.thunk = true;
     }
     procedure.apply = async function(self, args) {
-      return await apply(procedure, args, input, self ? self.environment : environment);
+      return await apply(procedure, args, input, self?.environment || environment);
     };
     return procedure;
   }
@@ -2279,10 +2374,11 @@ var fumifier = (function() {
    * @param {boolean} [setupTimestamp=true] - Whether to set up timestamp/executionId
    * @returns {Promise<Object>} Prepared evaluation environment
    */
-  async function setupEvaluationEnvironment(baseEnvironment, bindings, input, mappingCache, setupTimestamp = true) {
+  async function setupEvaluationEnvironment(baseEnvironment, bindings, input, mappingCache, setupTimestamp = true, evaluationState) {
     // Always create a fresh frame so evaluation never mutates the compiled base environment.
     // This also makes concurrent evaluations on the same compiled object safe.
     const exec_env = createFrame(baseEnvironment);
+    exec_env.evaluationState = evaluationState;
 
     // Only apply **local** bindings when a non-empty bindings object is provided on evaluation.
     if (bindings && typeof bindings === 'object' && !Array.isArray(bindings) && Object.keys(bindings).length > 0) {
@@ -2308,6 +2404,7 @@ var fumifier = (function() {
     if (mappingCache) {
       await bindMappingFunctions(exec_env, mappingCache);
     }
+    exec_env.bind(Symbol.for('fumifier.__mappingCache'), mappingCache);
 
     return exec_env;
   }  /**
@@ -2353,6 +2450,7 @@ var fumifier = (function() {
      * @returns {Promise<any>} - result of evaluating the expression
      */
   async function functionEval(expr, focus) {
+    checkCancellation(this.environment);
     // undefined inputs always return undefined
     if(typeof expr === 'undefined') {
       return undefined;
@@ -2408,8 +2506,9 @@ var fumifier = (function() {
    * @param {MappingCacheInterface} mappingCache - The mapping cache instance
    * @returns {Function} A function that evaluates the mapping expression
    */
-  function createMappingFunction(mappingKey, mappingCache) {
+  function createMappingFunction(mappingKey, mappingCache, definition) {
     return async function(input, bindings) {
+      checkCancellation(this.environment);
       // Get the mapping cache - use passed cache or environment cache
       const actualMappingCache = mappingCache || (this.environment && this.environment.lookup(Symbol.for('fumifier.__mappingCache')));
 
@@ -2422,7 +2521,7 @@ var fumifier = (function() {
       // Get the expression from the mapping cache
       let expr;
       try {
-        expr = await actualMappingCache.get(mappingKey);
+        expr = definition ? definition.expression : await actualMappingCache.get(mappingKey);
       } catch(sourceError) {
         populateMessage(sourceError, this.environment);
         // Cache error - throw specific error
@@ -2447,52 +2546,81 @@ var fumifier = (function() {
         };
       }
 
-      // Determine the input to use
-      var evalInput = this.input; // default to context value
-      if (typeof input !== 'undefined') {
-        evalInput = normalizeEvaluationInput(input);
-      }
+      return executeMappingDefinition.call(this, definition || { expression: expr }, input, bindings, undefined, mappingKey);
+    };
+  }
 
-      // Create a new evaluation environment with bindings if provided
-      var evalEnv = this.environment;
-      if (typeof bindings === 'object' && bindings !== null && !Array.isArray(bindings)) {
-        // Create a new frame with the provided bindings
-        evalEnv = createFrame(this.environment);
-        for (const key in bindings) {
-          evalEnv.bind(key, bindings[key]);
-        }
-      }
+  /**
+   * @this {NativeInvocationContext}
+   * @param {MappingDefinition} definition
+   * @param {any} input
+   * @param {Object} bindings
+   * @param {{signal?: AbortSignal}} options
+   * @param {string} [mappingKey]
+   * @returns {Promise<any>}
+   */
+  async function executeMappingDefinition(definition, input, bindings, options, mappingKey = '<mapping>', protectIdentity = false) {
+    checkCancellation(this.environment);
+    const expr = definition.expression;
 
-      // Parse and cache the mapping expression (Note: mappings always use recover=false like $eval)
-      const navigator = evalEnv && evalEnv.lookup(Symbol.for('fumifier.__navigator'));
-      const terminologyRuntime = evalEnv && evalEnv.lookup(Symbol.for('fumifier.__terminologyRuntime'));
-      const astCacheImpl = evalEnv && evalEnv.lookup(Symbol.for('fumifier.__astCacheImpl')) || new AstCacheImpl(getDefaultCache());
-      const compiledFhirRegex = evalEnv && evalEnv.lookup(Symbol.for('fumifier.__compiledFhirRegex_OBJ'));
+    // Determine the input to use
+    var evalInput = this.input; // default to context value
+    if (typeof input !== 'undefined') {
+      evalInput = normalizeEvaluationInput(input);
+    }
 
-      let ast;
-      try {
-        ast = await parseAndCacheExpression(expr, false, navigator, terminologyRuntime, astCacheImpl, compiledFhirRegex, "F3002");
-      } catch(parseError) {
-        // error parsing the mapping expression - customize error format for mapping context
-        const nestedParseError = parseError.error || parseError;
-        populateMessage(nestedParseError, this.environment);
-        let sourceMessage;
-        if (typeof nestedParseError.message === 'string') {
-          sourceMessage = nestedParseError.message;
-        } else if (typeof parseError.message === 'string') {
-          sourceMessage = parseError.message;
-        } else if (typeof parseError.value === 'string') {
-          sourceMessage = parseError.value;
-        } else {
-          sourceMessage = String(nestedParseError);
-        }
-        throw attachSourceErrorMetadata({
-          code: "F3002",
-          value: mappingKey,
-          sourceMessage,
-          stack: (new Error()).stack
-        }, nestedParseError);
+    // Create a new evaluation environment with bindings if provided
+    var evalEnv = this.environment;
+    if (options?.signal) {
+      const inherited = evalEnv.evaluationState;
+      evalEnv = createFrame(evalEnv);
+      evalEnv.evaluationState = {
+        lifetime: inherited.lifetime,
+        signal: inherited.signal ? AbortSignal.any([inherited.signal, options.signal]) : options.signal
+      };
+      checkCancellation(evalEnv);
+    }
+    if (definition.scope) {
+      evalEnv = await createScopedEnvironment(definition.scope, evalEnv, evalInput, bindings);
+    } else if (protectIdentity || (typeof bindings === 'object' && bindings !== null && !Array.isArray(bindings))) {
+      // Create a new frame with the provided bindings
+      evalEnv = createFrame(evalEnv);
+      for (const key of Object.keys(bindings || {})) {
+        if (!protectIdentity || !protectedNames.has(key)) evalEnv.bind(key, bindings[key]);
       }
+    }
+    checkCancellation(evalEnv);
+
+    // Parse and cache the mapping expression (Note: mappings always use recover=false like $eval)
+    const navigator = evalEnv && evalEnv.lookup(Symbol.for('fumifier.__navigator'));
+    const terminologyRuntime = evalEnv && evalEnv.lookup(Symbol.for('fumifier.__terminologyRuntime'));
+    const astCacheImpl = evalEnv && evalEnv.lookup(Symbol.for('fumifier.__astCacheImpl')) || new AstCacheImpl(getDefaultCache());
+    const compiledFhirRegex = evalEnv && evalEnv.lookup(Symbol.for('fumifier.__compiledFhirRegex_OBJ'));
+
+    let ast;
+    try {
+      ast = await parseAndCacheExpression(expr, false, navigator, terminologyRuntime, astCacheImpl, compiledFhirRegex, "F3002");
+    } catch(parseError) {
+      // error parsing the mapping expression - customize error format for mapping context
+      const nestedParseError = parseError.error || parseError;
+      populateMessage(nestedParseError, this.environment);
+      let sourceMessage;
+      if (typeof nestedParseError.message === 'string') {
+        sourceMessage = nestedParseError.message;
+      } else if (typeof parseError.message === 'string') {
+        sourceMessage = parseError.message;
+      } else if (typeof parseError.value === 'string') {
+        sourceMessage = parseError.value;
+      } else {
+        sourceMessage = String(nestedParseError);
+      }
+      throw attachSourceErrorMetadata({
+        code: "F3002",
+        value: mappingKey,
+        sourceMessage,
+        stack: (new Error()).stack
+      }, nestedParseError);
+    }
 
     try {
       // Set up FLASH environment if needed
@@ -2518,9 +2646,10 @@ var fumifier = (function() {
    * @param {Object} env - The environment to bind mappings to
    * @param {MappingCacheInterface} mappingCache - The mapping cache instance
    */
-  async function bindMappingFunctions(env, mappingCache) {
+  async function captureMappingFunctions(mappingCache) {
+    const functions = new Map();
     if (!mappingCache) {
-      return; // No mapping cache provided
+      return functions;
     }
 
     try {
@@ -2528,17 +2657,39 @@ var fumifier = (function() {
 
       for (const mappingKey of mappingKeys) {
         // Create a function for this mapping
-        const mappingFunction = createMappingFunction(mappingKey, mappingCache);
+        const definition = mappingCache.getDefinition ? await mappingCache.getDefinition(mappingKey) : undefined;
+        const captured = definition ? { ...definition } : undefined;
+        const mappingFunction = createMappingFunction(mappingKey, mappingCache, captured);
 
         // Define the function with appropriate signature
         // Accept optional input and optional bindings object
-        const definedFunction = defineFunction(mappingFunction, '<x?o?:x>');
+        const definedFunction = {
+          _fumifier_function: true,
+          implementation: mappingFunction,
+          signature: getMappingSignature(captured?.signature || '<x?o?:x>')
+        };
 
         // Bind the function to the environment using the mapping key as the function name
-        env.bind(mappingKey, definedFunction);
+        functions.set(mappingKey, definedFunction);
       }
     } catch (err) {
+      if (mappingCache.getDefinition) throw err;
       // Error getting mapping keys - log warning but don't fail evaluation
+      throw err;
+    }
+    return functions;
+  }
+
+  /**
+   * @param {Object} env
+   * @param {MappingCacheInterface} mappingCache
+   */
+  async function bindMappingFunctions(env, mappingCache) {
+    try {
+      const functions = await captureMappingFunctions(mappingCache);
+      for (const [name, mappingFunction] of functions) env.bind(name, mappingFunction);
+    } catch (err) {
+      if (mappingCache?.getDefinition) throw err;
       const logger = env.lookup(SYM.logger) || createDefaultLogger();
       logger.warn(`Failed to load mappings from mapping cache: ${err.message || err}`);
     }
@@ -2546,6 +2697,18 @@ var fumifier = (function() {
 
   // Function registration
   registerNativeFn(staticFrame, functionEval);
+  bindFhirClientFunctions(staticFrame);
+  bindTerminologyFunctions(staticFrame);
+  staticFrame.bind('now', defineFunction(function(picture, timezone) {
+    const ts = this.environment.timestamp || new Date();
+    return datetime.fromMillis(ts.getTime(), picture, timezone);
+  }, '<s?s?:s>'));
+  staticFrame.bind('millis', defineFunction(function() {
+    return (this.environment.timestamp || new Date()).getTime();
+  }, '<:n>'));
+
+  fumifier.getBuiltinBindingNames = () => [...staticFrame.names(), ...Object.keys(DEFAULT_THRESHOLDS)];
+  fumifier.getReservedBindingNames = () => [...protectedNames];
 
   // Register user-facing logging functions
   (function registerLoggingFunctions(frame) {
@@ -2832,10 +2995,7 @@ var fumifier = (function() {
     var environment = createFrame(staticFrame);
 
     // Threshold defaults (scoped variables)
-    environment.bind('throwLevel', 30);
-    environment.bind('logLevel', 40);
-    environment.bind('collectLevel', 70);
-    environment.bind('validationLevel', 30);
+    for (const name of Object.keys(DEFAULT_THRESHOLDS)) environment.bind(name, DEFAULT_THRESHOLDS[name]);
 
     // Global logger for this compiled expression (not exposed to expressions)
     // Use provided logger or default
@@ -2856,12 +3016,6 @@ var fumifier = (function() {
     if (hasNamedFhirConnectionNames) {
       environment.bind(Symbol.for('fumifier.__namedFhirConnectionNames'), namedFhirConnectionNames);
     }
-    // Always bind FHIR client wrapper functions (they check for client internally)
-    bindFhirClientFunctions(environment);
-
-    // Always bind terminology wrapper functions (they check for runtime internally)
-    bindTerminologyFunctions(environment);
-
     // Apply bindings from compilation options if provided
     if (bindings && typeof bindings === 'object') {
       for (const key in bindings) {
@@ -2870,17 +3024,6 @@ var fumifier = (function() {
         }
       }
     }
-
-    // Date/time functions must be per-evaluation: they read the fixed timestamp
-    // from the current evaluation environment.
-    environment.bind('now', defineFunction(function(picture, timezone) {
-      const ts = (this.environment && this.environment.timestamp) ? this.environment.timestamp : new Date();
-      return datetime.fromMillis(ts.getTime(), picture, timezone);
-    }, '<s?s?:s>'));
-    environment.bind('millis', defineFunction(function() {
-      const ts = (this.environment && this.environment.timestamp) ? this.environment.timestamp : new Date();
-      return ts.getTime();
-    }, '<:n>'));
 
     // bind a GETTER for compiled FHIR regexes
     environment.bind(Symbol.for('fumifier.__compiledFhirRegex_GET'), function(regexStr) {
@@ -2917,6 +3060,7 @@ var fumifier = (function() {
     var fumifierObject = {
       evaluate: async function (input, bindings, runtimeOptions) {
         var exec_env;
+        const evaluationState = { lifetime: { active: true, scopes: undefined }, signal: runtimeOptions?.signal };
         try {
           // throw if the expression compiled with syntax errors
           if(ast.errors && ast.errors.length > 0) {
@@ -2943,7 +3087,10 @@ var fumifier = (function() {
           const effectiveMappingCache = (runtimeOptions && runtimeOptions.mappingCache) || mappingCache;
 
           // Setup a fresh, per-call evaluation environment (timestamp/executionId included)
-          exec_env = await setupEvaluationEnvironment(environment, bindings, input, effectiveMappingCache, true);
+          exec_env = await setupEvaluationEnvironment(environment, runtimeOptions?.evaluationScope ? undefined : bindings, input, runtimeOptions?.evaluationScope ? undefined : effectiveMappingCache, true, evaluationState);
+          if (runtimeOptions?.evaluationScope && bindings?.fumeHttpInvocation) exec_env.bind('fumeHttpInvocation', bindings.fumeHttpInvocation);
+          if (runtimeOptions?.evaluationScope) exec_env = await createScopedEnvironment(runtimeOptions.evaluationScope, exec_env, input, bindings);
+          if (runtimeOptions?.evaluationScope) exec_env = setupFlashEnvironment(exec_env, ast);
 
           // Apply runtime overrides if provided
           if (runtimeOptions) {
@@ -2952,8 +3099,8 @@ var fumifier = (function() {
             }
             if (runtimeOptions.fhirClient) {
               exec_env.bind(Symbol.for('fumifier.__fhirClient'), runtimeOptions.fhirClient);
-              // Re-bind FHIR client functions with the runtime override
-              bindFhirClientFunctions(exec_env);
+              // Preserve legacy runtime-client precedence over per-call bindings.
+              if (!runtimeOptions.evaluationScope) bindFhirClientFunctions(exec_env);
             }
             if (runtimeOptions.connectionResolver) {
               exec_env.bind(Symbol.for('fumifier.__connectionResolver'), runtimeOptions.connectionResolver);
@@ -2969,7 +3116,9 @@ var fumifier = (function() {
           // Normalize input for evaluation
           input = normalizeEvaluationInput(input);
 
+          checkCancellation(exec_env);
           const result = await evaluate(ast, input, exec_env);
+          checkCancellation(exec_env);
 
           return result;
         } catch (err) {
@@ -2980,6 +3129,8 @@ var fumifier = (function() {
             if (bag) err.flashDiagnostics = bag;
           } catch(ex) { /* ignore diagnostics attachment issues */ }
           throw err;
+        } finally {
+          evaluationState.lifetime.active = false;
         }
       },
       evaluateVerbose: async function (input, bindings, runtimeOptions) {
@@ -2989,7 +3140,11 @@ var fumifier = (function() {
         const effectiveMappingCache = (runtimeOptions && runtimeOptions.mappingCache) || mappingCache;
 
         // Setup a fresh, per-call evaluation environment (timestamp/executionId included)
-        var exec_env = await setupEvaluationEnvironment(environment, bindings, input, effectiveMappingCache, true);
+        const evaluationState = { lifetime: { active: true, scopes: undefined }, signal: runtimeOptions?.signal };
+        var exec_env = await setupEvaluationEnvironment(environment, runtimeOptions?.evaluationScope ? undefined : bindings, input, runtimeOptions?.evaluationScope ? undefined : effectiveMappingCache, true, evaluationState);
+        if (runtimeOptions?.evaluationScope && bindings?.fumeHttpInvocation) exec_env.bind('fumeHttpInvocation', bindings.fumeHttpInvocation);
+        if (runtimeOptions?.evaluationScope) exec_env = await createScopedEnvironment(runtimeOptions.evaluationScope, exec_env, input, bindings);
+        if (runtimeOptions?.evaluationScope) exec_env = setupFlashEnvironment(exec_env, ast);
 
         // Apply runtime overrides if provided
         if (runtimeOptions) {
@@ -2998,8 +3153,8 @@ var fumifier = (function() {
           }
           if (runtimeOptions.fhirClient) {
             exec_env.bind(Symbol.for('fumifier.__fhirClient'), runtimeOptions.fhirClient);
-            // Re-bind FHIR client functions with the runtime override
-            bindFhirClientFunctions(exec_env);
+            // Preserve legacy runtime-client precedence over per-call bindings.
+            if (!runtimeOptions.evaluationScope) bindFhirClientFunctions(exec_env);
           }
           if (runtimeOptions.connectionResolver) {
             exec_env.bind(Symbol.for('fumifier.__connectionResolver'), runtimeOptions.connectionResolver);
@@ -3083,8 +3238,6 @@ var fumifier = (function() {
       setFhirClient: function(client) {
         // Update the FHIR client
         environment.bind(Symbol.for('fumifier.__fhirClient'), client);
-        // Re-bind FHIR client wrapper functions with new client
-        bindFhirClientFunctions(environment);
       },
       ast: function() {
         return ast;
@@ -3104,3 +3257,13 @@ var fumifier = (function() {
 
 export default fumifier;
 export { FumifierError };
+
+/** @returns {string[]} */
+export function getBuiltinBindingNames() {
+  return fumifier.getBuiltinBindingNames();
+}
+
+/** @returns {string[]} */
+export function getReservedBindingNames() {
+  return fumifier.getReservedBindingNames();
+}
