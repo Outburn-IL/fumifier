@@ -32,6 +32,7 @@
     "clean": "rimraf dist",
     "postbuild": "npm run build:types",
     "build:types": "tsc -p tsconfig.types.json && node scripts/build-types.js",
+    "test:scope-types": "tsc --noEmit --strict --skipLibCheck --target ES2022 --module NodeNext --moduleResolution NodeNext test/evaluation-scope.types.ts",
     "debug": "node --inspect-brk test/debug.js",
     "debug:detached": "node test/debug.js",
     "debug:attach": "node --inspect test/debug.js",
