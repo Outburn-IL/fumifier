@@ -246,6 +246,91 @@ var fumifier = (function() {
 
   var staticFrame = createFrame(null);
   const regexEvalCacheSymbol = Symbol.for('fumifier.__regexEvalCache');
+  const scopeSymbol = Symbol.for('fumifier.__evaluationScope');
+  const protectedNames = new Set(['executionId', 'fumeHttpInvocation']);
+  const serviceSymbols = [
+    SYM.logger, SYM.diagnostics,
+    ...['navigator', 'terminologyRuntime', 'astCacheImpl', 'compiledFhirRegex_OBJ',
+      'compiledFhirRegex_GET', 'compiledFhirRegex_SET', 'fhirClient',
+      'connectionResolver', 'namedFhirConnectionNames', 'currentFhirServer',
+      'evaluate_entry', 'evaluate_exit', 'createFrame_push']
+      .map(name => Symbol.for('fumifier.__' + name))
+  ];
+
+  /** @param {Object} environment */
+  function checkCancellation(environment) {
+    const state = environment?.evaluationState;
+    if (state && (!state.lifetime.active || state.signal?.aborted)) {
+      throw new FumifierError('D3150');
+    }
+  }
+
+  const mappingSignatures = new Map();
+
+  /** @param {string} source */
+  function getMappingSignature(source) {
+    let parsed = mappingSignatures.get(source);
+    if (!parsed) {
+      parsed = compileArgumentValidator(source);
+      if (mappingSignatures.size >= 256) mappingSignatures.delete(mappingSignatures.keys().next().value);
+      mappingSignatures.set(source, parsed);
+    }
+    return parsed;
+  }
+
+  /**
+   * @this {NativeInvocationContext}
+   * @param {MappingDefinition} definition
+   * @param {unknown} [input]
+   * @param {Record<string, unknown>} [bindings]
+   * @param {{signal?: AbortSignal}} [options]
+   * @returns {Promise<unknown>}
+   */
+  async function evaluateMappingFromContext(definition, input, bindings, options) {
+    checkCancellation(this.environment);
+    const args = typeof bindings !== 'undefined' ? [input, bindings] : typeof input !== 'undefined' ? [input] : [];
+    const validated = validateArguments(getMappingSignature(definition.signature || '<x?o?:x>'), args, this.input);
+    return executeMappingDefinition.call(this, definition, validated[0], validated[1], options, '<mapping>', true);
+  }
+
+  /**
+   * @param {EvaluationScope} scope
+   * @param {Object} caller
+   * @param {any} input
+   * @param {Object} bindings
+   * @returns {Promise<Object>}
+   */
+  async function createScopedEnvironment(scope, caller, input, bindings) {
+    const env = createFrame(staticFrame);
+    for (const name of Object.keys(DEFAULT_THRESHOLDS)) env.bind(name, DEFAULT_THRESHOLDS[name]);
+    env.evaluationState = caller.evaluationState;
+    env.timestamp = caller.timestamp;
+    env.executionId = caller.lookup('executionId');
+    for (const symbol of serviceSymbols) env.bind(symbol, caller.lookup(symbol));
+    const lifetime = caller.evaluationState.lifetime;
+    const snapshots = lifetime.scopes || (lifetime.scopes = new WeakMap());
+    let snapshot = snapshots.get(scope);
+    if (!snapshot) {
+      snapshot = { bindings: { ...scope.bindings }, mappingCache: scope.mappingCache };
+      snapshots.set(scope, snapshot);
+      snapshot.functions = captureMappingFunctions(snapshot.mappingCache);
+    }
+    env.bind(scopeSymbol, snapshot);
+    env.bind(Symbol.for('fumifier.__mappingCache'), snapshot.mappingCache);
+    const functions = await snapshot.functions;
+    for (const [name, mappingFunction] of functions) env.bind(name, { ...mappingFunction });
+    for (const values of [snapshot.bindings, bindings]) {
+      if (values) {
+        for (const key of Object.keys(values)) {
+          if (!protectedNames.has(key)) env.bind(key, values[key]);
+        }
+      }
+    }
+    for (const key of protectedNames) env.bind(key, caller.lookup(key));
+    env.bind('$', input);
+    env.bind(regexEvalCacheSymbol, new WeakMap());
+    return env;
+  }
 
   /**
      * Evaluate expression against input data
@@ -2303,8 +2388,10 @@ var fumifier = (function() {
       // throwing. For now, inner $eval is always non-verbose by design.
 
       var result = await evaluate(ast, input, evalEnv);
+      checkCancellation(evalEnv);
       return result;
     } catch(err) {
+      if (err.code === 'D3150') throw err;
       // error evaluating the expression passed to $eval
       populateMessage(err, this.environment);
       throw attachSourceErrorMetadata({
@@ -2407,22 +2494,23 @@ var fumifier = (function() {
         }, nestedParseError);
       }
 
-      try {
-        // Set up FLASH environment if needed
-        var finalEvalEnv = setupFlashEnvironment(evalEnv, ast);
+    try {
+      // Set up FLASH environment if needed
+      var finalEvalEnv = setupFlashEnvironment(evalEnv, ast);
 
-        var result = await evaluate(ast, evalInput, finalEvalEnv);
-        return result;
-      } catch(sourceError) {
-        // error evaluating the mapping expression
-        populateMessage(sourceError, this.environment);
-        throw attachSourceErrorMetadata({
-          code: 'F3001',
-          value: mappingKey,
-          stack: (new Error()).stack
-        }, sourceError);
-      }
-    };
+      var result = await evaluate(ast, evalInput, finalEvalEnv);
+      checkCancellation(finalEvalEnv);
+      return result;
+    } catch(sourceError) {
+      if (sourceError.code === 'D3150') throw sourceError;
+      // error evaluating the mapping expression
+      populateMessage(sourceError, this.environment);
+      throw attachSourceErrorMetadata({
+        code: 'F3001',
+        value: mappingKey,
+        stack: (new Error()).stack
+      }, sourceError);
+    }
   }
 
   /**
@@ -2933,16 +3021,26 @@ var fumifier = (function() {
         input = normalizeEvaluationInput(input);
 
         let result;
+        let cancelled = false;
         try {
+          checkCancellation(exec_env);
           result = await evaluate(ast, input, exec_env);
+          checkCancellation(exec_env);
         } catch (err) {
           // In verbose mode: never throw for any defined error (F/S/T/D). Only throw if completely unrecognized shape.
           populateMessage(err, exec_env);
+          cancelled = err.code === 'D3150';
+          result = undefined;
           // Use diagnostics push() with the original error (message populated); push() will sanitize
-          push(exec_env, err);
+          const reportingEnv = createFrame(exec_env);
+          reportingEnv.evaluationState = undefined;
+          push(reportingEnv, err);
+        } finally {
+          evaluationState.lifetime.active = false;
         }
 
         const status = (function computeStatus() {
+          if (cancelled) return 422;
           const { throwLevel } = thresholds(exec_env);
           const numSev = (e) => (typeof e.severity === 'number' ? e.severity : severityFromCode(e.code));
           const hasFatal = (bag.error || []).some(e => numSev(e) === LEVELS.fatal);
