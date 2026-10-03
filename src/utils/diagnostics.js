@@ -24,6 +24,8 @@ export const LEVELS = {
   debug: 60
 };
 
+export const DEFAULT_THRESHOLDS = Object.freeze({ throwLevel: 30, logLevel: 40, collectLevel: 70, validationLevel: 30 });
+
 /**
  * Default console-based logger. Message-only API.
  * @returns {import('@outburn/types').Logger} Logger with debug/info/warn/error methods.
@@ -100,10 +102,10 @@ export function thresholds(env) {
   };
   return {
     // With exclusive comparisons (sev < threshold), set defaults to the start of the next band
-    throwLevel: getNum('throwLevel', 30),      // throw for fatal/invalid/error (sev < 30)
-    logLevel: getNum('logLevel', 40),          // log for warning and above (sev < 40)
-    collectLevel: getNum('collectLevel', 70),  // collect all (sev < 70)
-    validationLevel: getNum('validationLevel', 30) // validate for fatal/invalid/error (sev < 30)
+    throwLevel: getNum('throwLevel', DEFAULT_THRESHOLDS.throwLevel),
+    logLevel: getNum('logLevel', DEFAULT_THRESHOLDS.logLevel),
+    collectLevel: getNum('collectLevel', DEFAULT_THRESHOLDS.collectLevel),
+    validationLevel: getNum('validationLevel', DEFAULT_THRESHOLDS.validationLevel)
   };
 }
 
@@ -283,6 +285,10 @@ export function sanitizeDiagnosticEntry(entry) {
  */
 export function decide(code, env) {
   const sev = severityFromCode(code);
+  if (env?.evaluationState && (!env.evaluationState.lifetime.active || env.evaluationState.signal?.aborted)) {
+    // Suppress late errors until the next checkpoint reports cancellation.
+    return { severity: sev, shouldThrow: false, shouldLog: false, shouldCollect: false };
+  }
   const { throwLevel, logLevel, collectLevel } = thresholds(env);
   return {
     severity: sev,
@@ -301,6 +307,7 @@ export function decide(code, env) {
  * @returns {void}
  */
 export function push(env, entry) {
+  if (env?.evaluationState && (!env.evaluationState.lifetime.active || env.evaluationState.signal?.aborted)) return;
   const bag = env && env.lookup && env.lookup(SYM.diagnostics);
   if (!bag) return;
   const sev = severityFromCode(entry.code);
