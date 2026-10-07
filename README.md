@@ -547,6 +547,30 @@ dispatch, awaited results and diagnostic writes. Cancellation uses `D3150` and
 does not stop already-started I/O or provide CPU/process isolation. Browser entry
 behavior remains parsing-only and dependency-free.
 
+### Public Node API Reference
+
+| API | Contract |
+|---|---|
+| `MappingDefinition` | Source `expression`, optional `signature` and optional explicit `scope`; callable cache definitions are server-owned, not input data. |
+| `NativeInvocationContext` | Host-side wrapped-native `this`, including the active `evaluateMapping` executor. Do not store it beyond evaluation lifetime. |
+| `defineFunction(implementation, signature)` | Wraps a native implementation with ordinary argument validation/context defaults/coercion; annotated return types remain unchecked. |
+| `getBuiltinBindingNames()` | Current built-in callable/threshold binding names for host collision validation. |
+| `getReservedBindingNames()` | Protected execution identity/HTTP metadata names, without `$`. |
+| `parseSignatureStructure(signature)` | Validated declaration structure, not an invocation argument validator or result checker. |
+
+Await compilation (`const expression = await fumifier(source)`) before assigning
+bindings or evaluating. `$executionId` is a value, not a function. An explicit
+mapping scope must supply its own binding/cache policy; it is not reconstructed
+from caller locals. Per-call object bindings override that selected scope except
+reserved names. Only inventoried mapping-cache names become callable.
+
+The native mapping executor shares the current evaluation and cooperatively
+combines cancellation signals. `evaluateMapping(definition, undefined, bindings)`
+uses active focus; null is explicit input. It does not return a service handle,
+start an independent transform or guarantee cancellation of an external request.
+Always await nested mapping work and let the owner bound its lifetime. These APIs
+provide scope/lifetime control, not OS isolation or correctness of embedding code.
+
 ## 18. Release Notes
 
 ### Unreleased
