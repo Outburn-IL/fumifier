@@ -29,6 +29,28 @@ describe('Mapping Repository with FLASH Expressions', function() {
     terminologyRuntime = await FhirTerminologyRuntime.create({ fpe });
   });
 
+  it('rebuilds scoped FLASH state through both named mappings and the captured executor', async function() {
+    const scope = {
+      bindings: { prefix: 'scope' },
+      mappingCache: { async getKeys() { return []; }, async get() { return undefined; } }
+    };
+    const definition = { expression: 'InstanceOf: Patient\n* id = $prefix & "-" & id', scope };
+    const mappingCache = {
+      async getKeys() { return ['scoped']; },
+      async get() { return undefined; },
+      getDefinition() { return definition; }
+    };
+    const compiled = await fumifier('$scoped($)', { navigator, terminologyRuntime, mappingCache });
+    assert.strictEqual((await compiled.evaluate({ id: 'named' }, { prefix: 'caller' })).id, 'scope-named');
+    const host = await fumifier('$host()', { navigator, terminologyRuntime });
+    host.registerFunction('host', async function() {
+      return this.evaluateMapping(definition, { id: 'callback' });
+    });
+    assert.strictEqual((await host.evaluate({}, { prefix: 'caller' })).id, 'scope-callback');
+    const direct = await fumifier(definition.expression, { navigator, terminologyRuntime });
+    assert.strictEqual((await direct.evaluate({ id: 'direct' }, { prefix: 'call' }, { evaluationScope: scope })).id, 'call-direct');
+  });
+
   describe('FLASH Expressions in Mappings', function() {
     let flashMappingCache;
 

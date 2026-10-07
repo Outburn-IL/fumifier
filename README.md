@@ -21,8 +21,11 @@
 14. Cached Parsing
 15. Mapping Repository
 16. Syntax Enhancements
-17. Contributing
-18. Acknowledgements
+17. Explicit Evaluation Scopes
+18. Release Notes
+19. Contributing
+20. License & Attribution
+21. Acknowledgements
 
 ---
 ## 1. What is Fumifier?
@@ -485,7 +488,99 @@ InstanceOf: MyPatientProfile
 Automatic injection of optional elements that are safe to auto-inject when they have fixed values (including both human-readable fields like display text/units, and some semantically meaningful fields that are profile-fixed). Note that mandatory elements with fixed values are always injected, this feature does the same for optional elements if they are regarded safe.
 
 ---
-## 17. Contributing
+## 17. Explicit Evaluation Scopes
+
+Node consumers can supply `RuntimeOptions.evaluationScope` to `evaluate` or
+`evaluateVerbose`, or return a `MappingDefinition` from the optional mapping-cache
+`getDefinition(name)` method. A definition has `expression`, optional `signature`
+(default `<x?o?:x>`) and optional `scope: { bindings, mappingCache }`.
+Only names returned by `getKeys()` are callable; an undefined definition falls
+back to the existing string-returning `get(name)` path.
+
+An explicit scope starts from built-ins and configured internal services rather
+than assigned/user bindings or caller locals. Scope bindings override its mapping
+functions; explicit call bindings override both. Empty scopes do not reuse the
+compilation mapping cache. Nested `$eval` retains the selected scope. Ordinary
+string-only mappings retain their existing caller-inheritance behavior.
+Scoped mappings reset `$`/`$$` to their input, preserve execution identity,
+timestamp, diagnostics and HTTP invocation metadata, and restore caller FHIR
+connection selection on exit. Thresholds come from the selected scope, not caller
+lexical overrides. Scope objects belong to an evaluation, never an AST cache.
+
+Scope bindings and callable definitions are captured lazily on first entry and
+memoized per scope object for the current top-level evaluation. Repeated or
+concurrent entries share that shallow snapshot; the next evaluation captures a
+fresh snapshot. Nested values are not cloned: the scope owner must freeze or
+otherwise protect them from mutation. Definition-cache failures from `getKeys`
+or `getDefinition` fail the evaluation rather than silently removing functions.
+
+The Node entry exports `defineFunction`, `getBuiltinBindingNames`,
+`getReservedBindingNames` and
+`parseSignatureStructure`. This parses and validates the signature declaration,
+not evaluation values, reporting
+`arguments`, `returnType` and `hasFunctionType`; descriptors expose `type`,
+`subtype`/`choice`, `optional`, `contextDefault` and `repeated`. It is additive:
+legacy argument validation and unchecked annotated return types are unchanged.
+
+Internally, `compileArgumentValidator(signature)` builds a reusable
+`{ definition, validate(args, context) }` object. Only `validate` checks actual
+call arguments, applies context defaults and performs existing coercions; the
+compiler intentionally ignores return declarations. `parseSignatureStructure`
+instead returns declaration metadata, including nested and return types, and
+never checks actual arguments or enforces result types. The compiler remains
+internal; structural parsing is the public Node API.
+Built-in names include threshold bindings. Reserved names are `executionId` and
+`fumeHttpInvocation`; hosts should reject collisions with these names.
+
+Wrapped native implementations receive a host-side `this.evaluateMapping(
+definition, input?, bindings?, { signal? }?)` executor. It retains the active
+execution/services/diagnostic context rather than starting another transformation.
+Undefined input inherits the active focus; null is explicit input. Explicit call
+bindings cannot replace `executionId` or `fumeHttpInvocation`. This executor is
+not a plugin transport API and is unavailable after its evaluation settles.
+A stored native `this` cannot restart mapping work after that lifetime ends;
+its mapping executor rejects with `D3150` and late diagnostics are suppressed.
+
+`RuntimeOptions.signal` cooperatively cancels evaluations, with additional
+callback signals combined rather than replacing it. Cancellation checks gate
+dispatch, awaited results and diagnostic writes. Cancellation uses `D3150` and
+does not stop already-started I/O or provide CPU/process isolation. Browser entry
+behavior remains parsing-only and dependency-free.
+
+### Public Node API Reference
+
+| API | Contract |
+|---|---|
+| `MappingDefinition` | Source `expression`, optional `signature` and optional explicit `scope`; callable cache definitions are server-owned, not input data. |
+| `NativeInvocationContext` | Host-side wrapped-native `this`, including the active `evaluateMapping` executor. Do not store it beyond evaluation lifetime. |
+| `defineFunction(implementation, signature)` | Wraps a native implementation with ordinary argument validation/context defaults/coercion; annotated return types remain unchecked. |
+| `getBuiltinBindingNames()` | Current built-in callable/threshold binding names for host collision validation. |
+| `getReservedBindingNames()` | Protected execution identity/HTTP metadata names, without `$`. |
+| `parseSignatureStructure(signature)` | Validated declaration structure, not an invocation argument validator or result checker. |
+
+Await compilation (`const expression = await fumifier(source)`) before assigning
+bindings or evaluating. `$executionId` is a value, not a function. An explicit
+mapping scope must supply its own binding/cache policy; it is not reconstructed
+from caller locals. Per-call object bindings override that selected scope except
+reserved names. Only inventoried mapping-cache names become callable.
+
+The native mapping executor shares the current evaluation and cooperatively
+combines cancellation signals. `evaluateMapping(definition, undefined, bindings)`
+uses active focus; null is explicit input. It does not return a service handle,
+start an independent transform or guarantee cancellation of an external request.
+Always await nested mapping work and let the owner bound its lifetime. These APIs
+provide scope/lifetime control, not OS isolation or correctness of embedding code.
+
+## 18. Release Notes
+
+### Unreleased
+
+Binding frames now use null-prototype dictionaries. `$constructor` and
+`$toString` no longer resolve to inherited `Object.prototype` members; only
+explicitly bound names are visible. Explicit scopes, native mapping callbacks,
+signature inspection and cooperative cancellation are additive Node APIs.
+
+## 19. Contributing
 1. Fork & clone
 2. `npm install`
 3. `npm test` (runs lint + install FSH test package + coverage)
@@ -500,14 +595,14 @@ Security / PHI: Test data MUST NOT contain real patient information.
 
 
 ---
-## 19. License & Attribution
+## 20. License & Attribution
 GNU Affero General Public License v3.0 (see `LICENSE`). Portions adapted from / inspired by JSONata (MIT). Include original JSONata notices where required.
 FHIR® is the registered trademark of HL7 and is used with permission.
 
 If you redistribute modified sources, retain attribution headers and provide a NOTICE file summarizing third‑party attributions.
 
 ---
-## 20. Acknowledgements
+## 21. Acknowledgements
 - JSONata project for foundational expression evaluation concepts
 - HL7 & FHIR community
 - Contributors & early adopters of the FUME / FLASH ecosystem

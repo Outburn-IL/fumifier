@@ -179,6 +179,7 @@ const errorCodes = {
   "D3140": "Malformed URL passed to ${{{functionName}}}(): {{value}}",
   "D3141": "{{{message}}}",
   "D3142": "$memoize() arguments cannot contain functions or symbols. Received: {{value}}",
+  "D3150": "Evaluation cancelled",
   "D3200": "Cannot switch FHIR server to {{target}}: connection resolver is not configured.",
   "D3201": "Failed to switch FHIR server to {{target}}: {{{sourceMessage}}}",
   "F0001": "Failed to extract root FHIR package context. This may hinder AST mobility. FHIR Package Explorer < v1.5.0 doesn't support this operation.",

@@ -9,7 +9,7 @@ See NOTICE and LICENSES/MIT-JSONata.txt for details.
 License: See the LICENSE file included with this package for the terms that apply to this distribution.
 */
 
-import parseSignature from './signature.js';
+import compileArgumentValidator from './signature.js';
 
 /**
      * Creates a function definition
@@ -23,7 +23,7 @@ function defineFunction(func, signature) {
     implementation: func
   };
   if(typeof signature !== 'undefined') {
-    definition.signature = parseSignature(signature);
+    definition.signature = compileArgumentValidator(signature);
   }
   return definition;
 }
