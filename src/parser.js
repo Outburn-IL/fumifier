@@ -11,7 +11,7 @@ See NOTICE and LICENSES/MIT-JSONata.txt for details.
 License: See the LICENSE file included with this package for the terms that apply to this distribution.
 */
 
-import parseSignature from './utils/signature.js';
+import compileArgumentValidator from './utils/signature.js';
 import operators from './utils/operators.js';
 import tokenizer from './utils/tokenizer.js';
 import processAST from './utils/processAst.js';
@@ -1227,7 +1227,7 @@ const parser = (() => {
           }
           advance('>');
           try {
-            this.signature = parseSignature(sig);
+            this.signature = compileArgumentValidator(sig);
           } catch (err) {
             // insert the position into this error
             err.position = sigPos + err.offset;

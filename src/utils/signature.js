@@ -11,7 +11,7 @@ License: See the LICENSE file included with this package for the terms that appl
 
 import isFunction from './isFunction.js';
 
-const signature = (() => {
+const compileArgumentValidator = (() => {
 
   // A mapping between the function signature symbols and the full plural of the type
   // Expected to be used in error messages
@@ -25,14 +25,14 @@ const signature = (() => {
   };
 
   /**
-     * Parses a function signature definition and returns a validation function
+     * Compiles argument declarations into a reusable runtime validator.
+     * Values are checked/coerced only when validate(args, context) is called;
+     * return declarations are intentionally ignored for legacy compatibility.
      * @param {string} signature - the signature between the <angle brackets>
-     * @returns {Function} validation function
+     * @returns {{definition: string, validate: (args: any[], context: any) => any[]}} Runtime argument validator
      */
-  function parseSignature(signature) {
-    // create a Regex that represents this signature and return a function that when invoked,
-    // returns the validated (possibly fixed-up) arguments, or throws a validation error
-    // step through the signature, one symbol at a time
+  function compileArgumentValidator(signature) {
+    // Compile argument declarations; the returned validator checks values later.
     var position = 1;
     var params = [];
     var param = {};
@@ -40,8 +40,7 @@ const signature = (() => {
     while (position < signature.length) {
       var symbol = signature.charAt(position);
       if (symbol === ':') {
-        // TODO figure out what to do with the return type
-        // ignore it for now
+        // Return annotations are not enforced by the legacy runtime validator.
         break;
       }
 
@@ -315,7 +314,91 @@ const signature = (() => {
     };
   }
 
-  return parseSignature;
+  return compileArgumentValidator;
 })();
 
-export default signature;
+export default compileArgumentValidator;
+
+/**
+ * Parses and validates the full signature declaration into structural metadata.
+ * Never examines evaluation values or enforces declared return types; also
+ * checks compatibility with the legacy argument-validator compiler.
+ * @param {string} source
+ * @returns {Object}
+ */
+export function parseSignatureStructure(source) {
+  let position = 0;
+  let hasFunctionType = false;
+  const fail = (code = 'S0201') => { throw { code, token: source?.[position], value: source, offset: position }; };
+  const consume = symbol => {
+    if (source[position] !== symbol) fail();
+    position++;
+  };
+  /**
+   * @param {boolean} allowModifiers
+   * @param {boolean} [isReturn]
+   */
+  function descriptor(allowModifiers, isReturn = false) {
+    const type = source[position++];
+    if (!type || (!'snbolafjx'.includes(type) && !(isReturn && type === 'u'))) fail();
+    const result = { type, optional: false, contextDefault: false, repeated: false };
+    if (type === 'f') hasFunctionType = true;
+    if (source[position] === '<') {
+      if (type !== 'a' && type !== 'f') fail('S0401');
+      position++;
+      if (type === 'f') {
+        result.subtype = signatureBody();
+      } else {
+        result.subtype = readType(false);
+        consume('>');
+      }
+    }
+    if (allowModifiers && '?-+'.includes(source[position] || '\0')) {
+      const modifier = source[position++];
+      result.optional = modifier === '?';
+      result.contextDefault = modifier === '-';
+      result.repeated = modifier === '+';
+    }
+    return result;
+  }
+  /**
+   * @param {boolean} allowModifiers
+   * @param {boolean} [isReturn]
+   */
+  function readType(allowModifiers, isReturn = false) {
+    if (source[position] !== '(') return descriptor(allowModifiers, isReturn);
+    position++;
+    const start = position;
+    const choice = [];
+    while (position < source.length && source[position] !== ')') choice.push(readType(false));
+    if (source.slice(start, position).includes('<')) fail('S0402');
+    if (choice.length === 0) fail();
+    consume(')');
+    const result = { type: 'choice', choice, optional: false, contextDefault: false, repeated: false };
+    if (allowModifiers && '?-+'.includes(source[position] || '\0')) {
+      const modifier = source[position++];
+      result.optional = modifier === '?';
+      result.contextDefault = modifier === '-';
+      result.repeated = modifier === '+';
+    }
+    return result;
+  }
+  /** @returns {Object} */
+  function signatureBody() {
+    const args = [];
+    while (position < source.length && source[position] !== ':' && source[position] !== '>') args.push(readType(true));
+    let returnType;
+    if (source[position] === ':') {
+      position++;
+      returnType = readType(false, true);
+    }
+    consume('>');
+    return { arguments: args, returnType };
+  }
+  if (typeof source !== 'string') fail();
+  consume('<');
+  const result = signatureBody();
+  if (position !== source.length) fail();
+  compileArgumentValidator(source);
+  return { ...result, hasFunctionType };
+}

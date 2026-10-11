@@ -94,4 +94,24 @@ describe('$search fetchAll transform bridge', function() {
 
     expect(res).to.deep.equal(['p1:match:0', 'p2:match:1']);
   });
+
+  it('retains invocation cancellation inside expression-defined transforms', async function() {
+    const controller = new AbortController();
+    let calls = 0;
+    const expr = await fumifier("$search('Patient', {}, {'fetchAll': true, 'transform': function($resource){$cancel($resource.id)}})", {
+      fhirClient: createClient([{ id: 'p1' }, { id: 'p2' }])
+    });
+    expr.registerFunction('cancel', function(value) {
+      calls++;
+      controller.abort();
+      return value;
+    });
+    try {
+      await expr.evaluate({}, {}, { signal: controller.signal });
+      expect.fail('Expected cancellation');
+    } catch (error) {
+      expect(error.code).to.equal('D3150');
+    }
+    expect(calls).to.equal(1);
+  });
 });
