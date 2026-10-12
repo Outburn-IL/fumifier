@@ -573,7 +573,7 @@ provide scope/lifetime control, not OS isolation or correctness of embedding cod
 
 ## 18. Release Notes
 
-### Unreleased
+### 2.5.0
 
 Binding frames now use null-prototype dictionaries. `$constructor` and
 `$toString` no longer resolve to inherited `Object.prototype` members; only
